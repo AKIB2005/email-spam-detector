@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Email Spam Detector</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #f4f6fb; color: #1b2430; margin: 0; padding: 24px 16px 48px;
+  }
+  .card {
+    max-width: 720px; margin: 0 auto 18px; background: #fff; padding: 28px;
+    border-radius: 14px; box-shadow: 0 4px 24px rgba(0,0,0,.08);
+  }
+  h1 { margin: 0 0 4px; font-size: 1.6rem; }
+  h2 { margin: 0 0 10px; font-size: 1.1rem; }
+  p.sub { margin: 0 0 8px; color: #5b6675; }
+  p.privacy { margin: 0 0 18px; color: #5b6675; font-size: .9rem; }
+  label { display: block; font-weight: 600; margin: 14px 0 6px; }
+  input, textarea {
+    width: 100%; padding: 10px 12px; font: inherit;
+    border: 1px solid #cdd4df; border-radius: 8px;
+  }
+  input:focus, textarea:focus { outline: 2px solid #3b5bdb55; border-color: #3b5bdb; }
+  textarea { min-height: 170px; resize: vertical; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+  button {
+    font: inherit; padding: 10px 18px; border: 0; border-radius: 8px;
+    cursor: pointer; background: #3b5bdb; color: #fff; font-weight: 600;
+  }
+  button:hover { background: #3350c4; }
+  button.ghost { background: #e9edf5; color: #1b2430; font-weight: 500; }
+  button.ghost:hover { background: #dde3ee; }
+  #result { margin-top: 22px; display: none; padding: 18px; border-radius: 10px; }
+  #result.spam { background: #fde8e8; border: 1px solid #f5b5b5; }
+  #result.ham  { background: #e6f6ec; border: 1px solid #a9dcbb; }
+  #verdict { font-size: 1.35rem; font-weight: 700; margin-bottom: 10px; }
+  .bar { height: 12px; background: #fff; border-radius: 6px; overflow: hidden; border: 1px solid #d5dbe6; }
+  .fill { height: 100%; width: 0; transition: width .4s; }
+  .spam .fill { background: #e03131; }
+  .ham .fill { background: #2f9e44; }
+  #detail { margin-top: 8px; color: #46515f; font-size: .95rem; }
+  .why { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 14px; }
+  .why div { flex: 1; min-width: 180px; }
+  .why h3 { margin: 0 0 6px; font-size: .9rem; color: #46515f; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { padding: 3px 10px; border-radius: 999px; font-size: .85rem; background: #fff; border: 1px solid #d5dbe6; }
+  .chip.s { border-color: #f1a3a3; }
+  .chip.h { border-color: #8fd0a5; }
+  #error { color: #c92a2a; margin-top: 14px; display: none; }
+  table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e6eaf2; }
+  th { color: #5b6675; font-weight: 600; }
+  .note { color: #5b6675; font-size: .9rem; margin: 10px 0 0; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>Email Spam Detector</h1>
+  <p class="sub">Paste an email and the model will tell you whether it looks like spam.</p>
+  <p class="privacy">The model runs inside your browser, so the email you paste is never sent anywhere.</p>
+
+  <label for="subject">Subject</label>
+  <input id="subject" type="text" placeholder="e.g. Your account is suspended">
+
+  <label for="body">Email body</label>
+  <textarea id="body" placeholder="Paste the email text here..."></textarea>
+
+  <div class="row">
+    <button id="check">Check email</button>
+    <button class="ghost" id="ex-spam" type="button">Spam example</button>
+    <button class="ghost" id="ex-phish" type="button">Phishing example</button>
+    <button class="ghost" id="ex-ham" type="button">Normal example</button>
+    <button class="ghost" id="clear" type="button">Clear</button>
+  </div>
+
+  <div id="error"></div>
+
+  <div id="result">
+    <div id="verdict"></div>
+    <div class="bar"><div class="fill" id="fill"></div></div>
+    <div id="detail"></div>
+    <div class="why">
+      <div><h3>Words pushing toward spam</h3><div class="chips" id="spam-words"></div></div>
+      <div><h3>Words pushing toward legitimate</h3><div class="chips" id="ham-words"></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>About this model</h2>
+  <p class="sub" id="about"></p>
+  <table>
+    <thead><tr><th>Model</th><th>Accuracy</th><th>Real emails wrongly flagged</th><th>Spam missed</th></tr></thead>
+    <tbody id="results"></tbody>
+  </table>
+  <p class="note">
+    Pipeline: clean the email (remove HTML, replace links, addresses and numbers with tokens) →
+    TF-IDF features (words and word pairs) → linear classifier.
+    Results are on a held-out 20% test set. The training data is the Enron email corpus, so the model
+    is best at spotting classic spam and can be less sure about modern marketing emails.
+  </p>
+</div>
+
+<script src="model.js"></script>
+<script src="spam.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const detector = SpamDetector.create(SPAM_MODEL);
+
+  const EXAMPLES = {
+    "ex-spam": ["You won $1,000,000!!!", "Congratulations! Click http://claim-prize.xyz now to receive your FREE reward. Limited time offer, act now!"],
+    "ex-phish": ["Your account is suspended", "Dear customer, we detected unusual sign-in activity. Verify your password within 24 hours at http://secure-login.example.com or your account will be closed."],
+    "ex-ham": ["DSA assignment deadline", "Hi everyone, please submit the linked list assignment by Friday. Reach out if you have any doubts."],
+  };
+
+  Object.keys(EXAMPLES).forEach((id) => {
+    $(id).onclick = () => {
+      $("subject").value = EXAMPLES[id][0];
+      $("body").value = EXAMPLES[id][1];
+      $("check").click();
+    };
+  });
+
+  $("clear").onclick = () => {
+    $("subject").value = "";
+    $("body").value = "";
+    $("result").style.display = "none";
+    $("error").style.display = "none";
+  };
+
+  function fillChips(containerId, words, cls) {
+    const box = $(containerId);
+    box.textContent = "";
+    if (!words.length) {
+      const none = document.createElement("span");
+      none.className = "chip";
+      none.textContent = "none found";
+      box.appendChild(none);
+      return;
+    }
+    words.forEach((w) => {
+      const chip = document.createElement("span");
+      chip.className = "chip " + cls;
+      chip.textContent = w.term;
+      box.appendChild(chip);
+    });
+  }
+
+  $("check").onclick = () => {
+    const subject = $("subject").value;
+    const body = $("body").value;
+    $("error").style.display = "none";
+    $("result").style.display = "none";
+
+    const r = detector.predict(subject, body);
+    if (!r) {
+      $("error").textContent = "Please enter a subject or some email text.";
+      $("error").style.display = "block";
+      return;
+    }
+
+    const pct = Math.round(r.spamProbability * 100);
+    const isSpam = r.label === "spam";
+    $("result").className = isSpam ? "spam" : "ham";
+    $("verdict").textContent = isSpam ? "Likely spam" : "Looks legitimate";
+    $("fill").style.width = pct + "%";
+    $("detail").textContent = "Spam probability: " + pct + "%";
+    fillChips("spam-words", r.spamWords, "s");
+    fillChips("ham-words", r.hamWords, "h");
+    $("result").style.display = "block";
+  };
+
+  // About section
+  const NAMES = { naive_bayes: "Naive Bayes", logistic_regression: "Logistic Regression" };
+  $("about").textContent =
+    "Trained on " + SPAM_MODEL.n_emails.toLocaleString() + " emails. Selected model: " +
+    NAMES[SPAM_MODEL.model_name] + " (" + SPAM_MODEL.terms.length.toLocaleString() + " features).";
+
+  Object.entries(SPAM_MODEL.all_results).forEach(([name, m]) => {
+    const tr = document.createElement("tr");
+    [NAMES[name] + (name === SPAM_MODEL.model_name ? " (used)" : ""),
+     (m.accuracy * 100).toFixed(1) + "%", m.false_positives, m.false_negatives]
+      .forEach((val) => {
+        const td = document.createElement("td");
+        td.textContent = val;
+        tr.appendChild(td);
+      });
+    $("results").appendChild(tr);
+  });
+</script>
+</body>
+</html>
