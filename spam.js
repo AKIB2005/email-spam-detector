@@ -108,6 +108,7 @@
         spamWords: contributions.filter((c) => c.value > 0).slice(0, 5),
         hamWords: contributions.filter((c) => c.value < 0).slice(-5).reverse(),
         featuresFound: contributions.length,
+        contributions,
       };
     }
 

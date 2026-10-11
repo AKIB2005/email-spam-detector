@@ -3,3 +3,4 @@ __pycache__/
 training/emails.csv
 .vercel/
 .DS_Store
+training/data/*.csv

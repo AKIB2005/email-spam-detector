@@ -5,24 +5,30 @@ Run (from inside the training folder):  python train_export.py
 Needs emails.csv (Kaggle dataset with a text column and a spam/label column)
 in the same folder.
 """
+import glob
 import json
+import os
+from datetime import date
 
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
+from sklearn.metrics import precision_score, recall_score
 from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import MultinomialNB
 
 from preprocess import prepare_email
 
-CSV_PATH = "emails.csv"
+DATA_DIR = "data"          # put any number of CSV files here
+FALLBACK_CSV = "emails.csv"  # used if data/ has no CSV files
+SOURCES = []
 OUTPUT_PATH = "../model.js"
 MAX_FEATURES = 20000  # keeps model.js small so the page loads fast
 
 
-def load_data(path=CSV_PATH):
+def _load_one(path):
     df = pd.read_csv(path, encoding="latin-1")
     cols = {c.lower().strip(): c for c in df.columns}
 
@@ -43,9 +49,28 @@ def load_data(path=CSV_PATH):
     df["label"] = df["label"].astype(int)
     df = df.drop_duplicates(subset="text")
 
-    df["clean"] = df["text"].apply(prepare_email)
-    df = df[df["clean"].str.len() > 0]
     return df
+
+
+def load_data():
+    """Load every CSV in data/ (or emails.csv), merge them and clean the text."""
+    files = sorted(glob.glob(os.path.join(DATA_DIR, "*.csv")))
+    if not files and os.path.exists(FALLBACK_CSV):
+        files = [FALLBACK_CSV]
+    if not files:
+        raise SystemExit("No CSV found. Put your dataset in training/data/ (or training/emails.csv).")
+
+    parts = []
+    SOURCES.clear()
+    for f in files:
+        part = _load_one(f)
+        print(f"Loaded {os.path.basename(f)}: {len(part)} emails")
+        SOURCES.append({"file": os.path.basename(f), "emails": int(len(part))})
+        parts.append(part)
+
+    df = pd.concat(parts, ignore_index=True).drop_duplicates(subset="text")
+    df["clean"] = df["text"].apply(prepare_email)
+    return df[df["clean"].str.len() > 0]
 
 
 def train(df):
@@ -74,6 +99,9 @@ def train(df):
         metrics = {
             "accuracy": round(accuracy_score(y_test, preds), 4),
             "f1": round(f1_score(y_test, preds), 4),
+            "precision": round(precision_score(y_test, preds), 4),
+            "recall": round(recall_score(y_test, preds), 4),
+            "confusion": [int(tn), int(fp), int(fn), int(tp)],
             "false_positives": int(fp),
             "false_negatives": int(fn),
         }
@@ -105,6 +133,8 @@ def export_model(vectorizer, best, results, n_emails, path=OUTPUT_PATH):
     model = {
         "model_name": name,
         "n_emails": int(n_emails),
+        "trained_at": date.today().isoformat(),
+        "sources": SOURCES,
         "metrics": metrics,
         "all_results": results,
         "bias": float(bias),

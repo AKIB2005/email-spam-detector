@@ -84,7 +84,27 @@
     transition: background-color .25s, color .25s;
   }
 
-  .wrap { max-width: 760px; margin: 0 auto; }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+  .layout { display: grid; gap: 18px; }
+  @media (min-width: 900px) {
+    .layout { grid-template-columns: 1.05fr .95fr; align-items: start; }
+    #result-card { position: sticky; top: 16px; }
+  }
+  #placeholder { text-align: center; padding: 48px 12px; color: var(--muted); }
+  #placeholder .big { font-size: 2.4rem; display: block; margin-bottom: 6px; }
+  .hl { white-space: pre-wrap; word-break: break-word; font-size: .9rem; padding: 12px; border-radius: 10px;
+    background: var(--card); border: 1px solid var(--border); max-height: 220px; overflow: auto; }
+  mark.s { background: color-mix(in srgb, var(--spam-strong) 30%, transparent); color: inherit; border-radius: 4px; padding: 0 2px; }
+  mark.h { background: color-mix(in srgb, var(--ham-strong) 30%, transparent); color: inherit; border-radius: 4px; padding: 0 2px; }
+  .legend { font-size: .78rem; color: var(--muted); margin: 6px 0 0; }
+  .cm { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px; max-width: 420px; margin: 14px 0 4px; font-size: .88rem; }
+  .cm div { padding: 8px 10px; border-radius: 8px; text-align: center; background: var(--ghost); }
+  .cm .hd { background: none; color: var(--muted); font-weight: 600; }
+  .cm .good { background: var(--ham-bg); border: 1px solid var(--ham-border); }
+  .cm .bad { background: var(--spam-bg); border: 1px solid var(--spam-border); }
+  .cm b { display: block; font-size: 1.1rem; }
+  h1 span.grad { background: linear-gradient(90deg, var(--accent), var(--spam-strong)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .card:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
 
   /* ---------- Header ---------- */
   header.top {
@@ -230,8 +250,9 @@
   </header>
 
   <main>
+    <div class="layout">
     <section class="card">
-      <h1>Is this email spam?</h1>
+      <h1>Is this email <span class="grad">spam?</span></h1>
       <p class="sub">Paste an email below and a machine learning model will check it.</p>
       <p class="privacy">🔒 The model runs inside your browser. The email you paste is never sent anywhere.</p>
 
@@ -259,6 +280,10 @@
 
       <div id="error" role="alert"></div>
 
+    </section>
+
+    <section class="card" id="result-card">
+      <div id="placeholder"><span class="big">📬</span>Your result will appear here.<br>Paste an email or try an example.</div>
       <div id="result" aria-live="polite">
         <div class="verdict-row">
           <div id="verdict"></div>
@@ -271,8 +296,11 @@
           <div><h3>Words pushing toward spam</h3><div class="chips" id="spam-words"></div></div>
           <div><h3>Words pushing toward legitimate</h3><div class="chips" id="ham-words"></div></div>
         </div>
+        <div class="why"><div><h3>Your email, highlighted</h3><div class="hl" id="highlight"></div>
+          <p class="legend"><mark class="s">spam-leaning</mark> <mark class="h">legitimate-leaning</mark></p></div></div>
       </div>
     </section>
+    </div>
 
     <section class="card">
       <h2>How it works</h2>
@@ -290,6 +318,7 @@
           <tbody id="results"></tbody>
         </table>
       </div>
+      <div id="confusion"></div>
       <p class="note">
         Results are on a held-out 20% test set. The training data is the Enron email corpus, so the model
         is best at spotting classic spam and phishing and can be less sure about modern marketing emails.
@@ -365,6 +394,23 @@
     });
   }
 
+  function renderHighlight(text, contributions) {
+    const spam = new Set(), ham = new Set();
+    contributions.filter((c) => c.value > 0 && !c.term.includes(" ")).slice(0, 12).forEach((c) => spam.add(c.term));
+    contributions.filter((c) => c.value < 0 && !c.term.includes(" ")).slice(-12).forEach((c) => ham.add(c.term));
+    const box = $("highlight");
+    box.textContent = "";
+    (text.match(/[A-Za-z]+|[^A-Za-z]+/g) || []).forEach((chunk) => {
+      const w = chunk.toLowerCase();
+      if (spam.has(w) || ham.has(w)) {
+        const m = document.createElement("mark");
+        m.className = spam.has(w) ? "s" : "h";
+        m.textContent = chunk;
+        box.appendChild(m);
+      } else box.appendChild(document.createTextNode(chunk));
+    });
+  }
+
   function runCheck() {
     $("error").style.display = "none";
     $("result").style.display = "none";
@@ -384,7 +430,9 @@
     $("verdict").textContent = isSpam ? "🚫 Likely spam" : "✅ Looks legitimate";
     $("percent").textContent = pct + "% spam probability";
     $("dot").style.left = "0%";
+    $("placeholder").style.display = "none";
     $("result").style.display = "block";
+    renderHighlight(($("subject").value + "\n" + $("body").value).trim(), r.contributions);
     requestAnimationFrame(() => { $("dot").style.left = Math.min(98, Math.max(2, pct)) + "%"; });
     $("borderline").style.display = (p > 0.35 && p < 0.65) ? "block" : "none";
     fillChips("spam-words", r.spamWords, "s");
@@ -397,6 +445,7 @@
     $("body").value = "";
     updateCounter();
     $("result").style.display = "none";
+    $("placeholder").style.display = "block";
     $("error").style.display = "none";
     $("subject").focus();
   };
@@ -424,7 +473,16 @@
     $("stats").appendChild(box);
   });
 
-  $("about").textContent = "Selected model: " + NAMES[SPAM_MODEL.model_name] + ".";
+  $("about").textContent = "Selected model: " + NAMES[SPAM_MODEL.model_name] +
+    (SPAM_MODEL.trained_at ? ". Trained on " + SPAM_MODEL.trained_at + "." : ".");
+  if (main.confusion) {
+    const [tn, fp, fn, tp] = main.confusion;
+    const cell = (cls, n, label) => '<div class="' + cls + '"><b>' + n + '</b>' + label + '</div>';
+    $("confusion").innerHTML = '<div class="cm"><div class="hd"></div><div class="hd">Predicted legitimate</div><div class="hd">Predicted spam</div>' +
+      '<div class="hd">Actually legitimate</div>' + cell("good", tn, "correct") + cell("bad", fp, "wrongly flagged") +
+      '<div class="hd">Actually spam</div>' + cell("bad", fn, "missed") + cell("good", tp, "caught") + '</div>' +
+      '<p class="note">Precision ' + (main.precision * 100).toFixed(1) + '% · Recall ' + (main.recall * 100).toFixed(1) + '% (spam class)</p>';
+  }
   Object.entries(SPAM_MODEL.all_results).forEach(([name, m]) => {
     const tr = document.createElement("tr");
     [NAMES[name] + (name === SPAM_MODEL.model_name ? " (used)" : ""),
