@@ -7,92 +7,215 @@
 <meta name="description" content="HAMMER scans an email, scores it with a machine learning model and shows exactly why. Runs entirely in your browser.">
 <meta name="theme-color" content="#050505">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%94%A8%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@100..900&display=swap" rel="stylesheet">
+<script>document.documentElement.classList.add("js");</script>
 <style>
   :root { --bg:#050505; --panel:#0e0d0d; --line:#2a2422; --text:#f2eeea; --muted:#9a918b; --accent:#e8582b; --accent2:#b9411d;
-    --spam:#ff6262; --ham:#4cd183; --warn:#f0c36a; }
+    --spam:#ff6262; --ham:#4cd183; --warn:#f0c36a; --glass:rgba(20,18,18,.6); --ease:cubic-bezier(.2,.7,.2,1);
+    --brand:"Google Sans Flex","Google Sans","Product Sans",system-ui,-apple-system,"Segoe UI",sans-serif; }
+  @property --ang { syntax:"<angle>"; initial-value:0deg; inherits:false; }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; overflow-x:hidden; }
   body::before { content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
-    background: radial-gradient(55% 45% at 50% 38%, rgba(200,75,30,.20), transparent 70%),
-      repeating-linear-gradient(135deg, transparent 0 90px, rgba(255,255,255,.022) 90px 91px); }
+    background:
+      radial-gradient(40% 32% at 50% 30%, rgba(255,110,40,.26), transparent 70%),
+      radial-gradient(35% 30% at 12% 62%, rgba(185,65,29,.18), transparent 70%),
+      radial-gradient(35% 30% at 90% 80%, rgba(255,74,0,.12), transparent 70%),
+      repeating-linear-gradient(135deg, transparent 0 90px, rgba(255,255,255,.022) 90px 91px);
+    animation:glowDrift 14s ease-in-out infinite alternate; }
+  @keyframes glowDrift { from{ background-position:0 0, 0 0, 0 0, 0 0; opacity:.9 } to{ background-position:30px -20px, -20px 30px, 20px 20px, 0 0; opacity:1 } }
   .wrap { max-width:1040px; margin:0 auto; padding:0 20px; }
   a { color:inherit; }
 
-  /* Nav */
-  nav { display:flex; justify-content:space-between; align-items:center; padding:20px 0; }
-  .logo { font-weight:800; letter-spacing:.14em; font-size:15px; }
-  .pill { display:flex; gap:4px; padding:6px; border:1px solid var(--line); border-radius:10px; background:rgba(14,13,13,.8); }
-  .pill a { padding:6px 14px; border-radius:7px; text-decoration:none; font-size:14px; color:var(--muted); }
-  .pill a:hover { color:var(--text); background:#1a1716; }
-  .ghostbtn { padding:7px 16px; border:1px solid #7a3318; border-radius:999px; background:rgba(232,88,43,.12); color:var(--text); font-size:14px; text-decoration:none; }
-  @media (max-width:720px) { .pill { display:none; } }
+  /* Ambient layer: scroll progress + floating embers */
+  #progress { position:fixed; top:0; left:0; right:0; height:3px; z-index:40; transform:scaleX(0); transform-origin:0 50%;
+    background:linear-gradient(90deg,#b9411d,#ff8a4a,#ffd2a8); box-shadow:0 0 12px rgba(255,120,50,.8); }
+  .embers { position:fixed; inset:0; z-index:-1; overflow:hidden; pointer-events:none; }
+  .ember { position:absolute; bottom:-12px; left:var(--x); width:var(--s); height:var(--s); border-radius:50%; background:#ffb27a; opacity:0;
+    box-shadow:0 0 8px #ff6a2a, 0 0 16px #ff4a00; animation:emberRise var(--t) linear var(--d) infinite; }
+  @keyframes emberRise { 0%{ opacity:0; transform:translate(0,0) scale(1) } 10%{ opacity:.9 } 60%{ opacity:.6 } 100%{ opacity:0; transform:translate(var(--dx),-108vh) scale(.3) } }
 
-  /* Hero */
+  /* Nav: logo on top, section links in a vertical rail on the far left */
+  nav { display:flex; justify-content:center; align-items:center; padding:22px 0; }
+  .logo { font-family:var(--brand); font-weight:800; letter-spacing:.24em; font-size:19px; padding-left:.24em;
+    background:linear-gradient(100deg,#f2eeea 35%,#ff8a4a 50%,#f2eeea 65%) 0 0/250% 100%; -webkit-background-clip:text; background-clip:text; color:transparent;
+    animation:logoShine 5s linear infinite; }
+  @keyframes logoShine { from{ background-position:150% 0 } to{ background-position:-100% 0 } }
+
+  .sidenav { position:fixed; left:14px; top:50%; transform:translateY(-50%); z-index:25; display:flex; flex-direction:column; gap:6px; padding:8px; border-radius:22px;
+    background:rgba(20,18,18,.55); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.08);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 8px 24px rgba(0,0,0,.4); animation:navIn .9s var(--ease) 1.3s backwards; }
+  @keyframes navIn { from{ opacity:0; transform:translate(-36px,-50%) } }
+  @keyframes navInM { from{ opacity:0; transform:translate(-50%,36px) } }
+  .sn { position:relative; display:flex; align-items:center; gap:12px; height:42px; width:42px; padding:0 11px; border-radius:16px; overflow:hidden; white-space:nowrap;
+    color:var(--muted); text-decoration:none; font-size:14px; font-weight:500;
+    transition:width .45s var(--ease), background .3s, color .3s, box-shadow .3s; }
+  .sn svg { flex:none; width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; transition:transform .45s var(--ease); }
+  .sn .lb { opacity:0; transform:translateX(-10px); transition:opacity .3s, transform .45s var(--ease); }
+  .sn:hover, .sn:focus-visible { width:158px; color:var(--text); background:linear-gradient(90deg,rgba(232,88,43,.30),rgba(232,88,43,.05)); box-shadow:0 0 22px rgba(232,88,43,.25); }
+  .sn:hover svg, .sn:focus-visible svg { transform:scale(1.18) rotate(-8deg); }
+  .sn:hover .lb, .sn:focus-visible .lb { opacity:1; transform:none; }
+  .sn.on { color:var(--accent); }
+  .sn.on:hover { color:var(--text); }
+  .sn.on::before { content:""; position:absolute; left:0; top:11px; bottom:11px; width:3px; border-radius:3px; background:var(--accent); box-shadow:0 0 10px var(--accent); }
+  @media (min-width:721px) and (max-width:1150px) { .wrap { padding-left:84px; } }
+  @media (max-width:720px) {
+    .sidenav { left:50%; top:auto; bottom:14px; transform:translateX(-50%); flex-direction:row; animation-name:navInM; }
+    .sn:hover, .sn:focus-visible { width:42px; }
+    .sn .lb { display:none; }
+    .sn.on::before { left:11px; right:11px; top:auto; bottom:2px; width:auto; height:3px; }
+    body { padding-bottom:76px; }
+  }
+
+  /* Hero: one orchestrated entrance, timed to the hammer strike at ~0.96s */
+  @keyframes introUp { from{ opacity:0; transform:translateY(26px) } to{ opacity:1; transform:none } }
+  @keyframes fadeIn { from{ opacity:0 } to{ opacity:1 } }
   .hero { position:relative; text-align:center; padding:12px 0 72px; }
   .hero::before { content:""; position:absolute; inset:0; pointer-events:none; opacity:.5;
     background: radial-gradient(rgba(255,255,255,.16) 1px, transparent 1.2px) 0 0/16px 16px;
     -webkit-mask-image: linear-gradient(90deg,#000 0,transparent 20%,transparent 80%,#000 100%);
     mask-image: linear-gradient(90deg,#000 0,transparent 20%,transparent 80%,#000 100%); }
   .hero > * { position:relative; }
-  .tag { margin:8px 0 14px; color:var(--accent); letter-spacing:.06em; font-size:15px; }
-  h1 { margin:0 auto; max-width:820px; font-size:clamp(34px,6vw,64px); line-height:1.15; font-weight:500; letter-spacing:-.02em; }
-  .hw { position:relative; display:inline-block; padding:0 14px; margin:0 4px; border:1px solid #a63d1d; background:rgba(232,88,43,.18); }
+  .tag { margin:8px 0 14px; color:var(--accent); letter-spacing:.06em; font-size:15px; animation:introUp .8s var(--ease) 1s backwards; }
+  h1 { margin:0 auto; max-width:820px; font-size:clamp(34px,6vw,64px); line-height:1.15; font-weight:500; letter-spacing:-.02em; animation:introUp .9s var(--ease) 1.15s backwards; }
+  .hw { position:relative; display:inline-block; padding:0 14px; margin:0 4px; border:1px solid #a63d1d; background:rgba(232,88,43,.18); animation:breathe 3.6s ease-in-out 2.2s infinite; }
+  @keyframes breathe { 0%,100%{ box-shadow:0 0 0 rgba(232,88,43,0) } 50%{ box-shadow:0 0 34px rgba(232,88,43,.4) } }
   .hw::before { content:""; position:absolute; inset:-3px; pointer-events:none; background:
     linear-gradient(#fff,#fff) 0 0/6px 6px no-repeat, linear-gradient(#fff,#fff) 100% 0/6px 6px no-repeat,
     linear-gradient(#fff,#fff) 0 100%/6px 6px no-repeat, linear-gradient(#fff,#fff) 100% 100%/6px 6px no-repeat; }
-  .sub { margin:20px auto 0; max-width:620px; color:#cfc8c2; font-size:18px; }
-  .proof { margin:20px 0 28px; color:var(--muted); font-size:14px; }
-  .proof b { color:var(--accent); }
+  .sub { margin:20px auto 0; max-width:620px; color:#cfc8c2; font-size:18px; animation:introUp .9s var(--ease) 1.35s backwards; }
   .cta { display:inline-block; padding:14px 34px; border:0; border-radius:12px; cursor:pointer; text-decoration:none;
-    background:linear-gradient(180deg,#d4552b,var(--accent2)); color:#fff; font:600 17px inherit; box-shadow:0 8px 30px rgba(232,88,43,.28); }
-  .cta:hover { filter:brightness(1.1); }
+    background:linear-gradient(180deg,#d4552b,var(--accent2)); color:#fff; font-family:inherit; font-size:17px; font-weight:600; box-shadow:0 8px 30px rgba(232,88,43,.28);
+    animation:introUp .8s var(--ease) 1.95s backwards, ctaGlow 2.8s ease-in-out 3s infinite; }
+  .cta:hover { filter:brightness(1.12); }
+  @keyframes ctaGlow { 0%,100%{ box-shadow:0 8px 30px rgba(232,88,43,.28) } 50%{ box-shadow:0 8px 48px rgba(255,110,40,.6) } }
+
+  /* Stats row */
+  .stats-row { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; margin:24px 0 28px; }
+  .stat { display:inline-flex; align-items:center; gap:8px; padding:9px 16px; border-radius:12px; font-size:14px; color:#e4ddd7;
+    background:rgba(20,18,18,.55); border:1px solid rgba(255,255,255,.09);
+    -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 4px 14px rgba(0,0,0,.35);
+    transition:transform .3s var(--ease), border-color .3s, box-shadow .3s; animation:introUp .7s var(--ease) backwards; }
+  .stat:nth-child(1) { animation-delay:1.5s; } .stat:nth-child(2) { animation-delay:1.62s; } .stat:nth-child(3) { animation-delay:1.74s; }
+  .stat:hover { transform:translateY(-3px); border-color:rgba(232,88,43,.55); box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 8px 22px rgba(232,88,43,.2); }
+  .stat b { color:var(--accent); font-weight:700; }
+  .stat .ico { font-size:16px; line-height:1; }
 
   /* Forge: hammer + nameplate */
-  .forge { position:relative; width:340px; height:210px; margin:0 auto; cursor:pointer; -webkit-tap-highlight-color:transparent; }
-  .plate { position:absolute; left:20px; right:20px; bottom:0; height:84px; display:grid; place-items:center; border-radius:12px;
+  .forge { position:relative; width:340px; height:210px; margin:28px auto 0; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .plate { position:absolute; z-index:2; left:20px; right:20px; bottom:0; height:84px; display:grid; place-items:center; border-radius:12px;
     background:linear-gradient(180deg,#1d1918,#0d0b0b); border:1px solid #3a2f2b; box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 14px 40px rgba(0,0,0,.6); }
   .plate::before, .plate::after { content:""; position:absolute; top:-40px; width:2px; height:40px; background:linear-gradient(#0000,#4a3d38); }
   .plate::before { left:36px; } .plate::after { right:36px; }
-  .plate span { font-size:40px; font-weight:800; letter-spacing:.28em; padding-left:.28em; color:var(--accent);
+  .plate span { font-family:var(--brand); font-size:44px; font-weight:800; line-height:1; letter-spacing:.22em; padding-left:.22em; color:var(--accent);
     text-shadow:0 0 22px rgba(232,88,43,.7); }
-  .hammer { position:absolute; left:calc(50% - 40px); top:-62px; width:80px; height:172px; transform-origin:50% 0; transform:rotate(20deg); pointer-events:none; }
-  .ring { position:absolute; left:50%; top:120px; width:20px; height:20px; margin:-10px; border:2px solid var(--accent); border-radius:50%; opacity:0; }
-  .spark { position:absolute; left:50%; top:122px; width:5px; height:5px; margin:-2px; border-radius:50%; background:#ffb27a; box-shadow:0 0 8px #ff8a4a; opacity:0; }
-  .hint { margin:14px 0 0; font-size:12px; color:var(--muted); }
+  .hammer { position:absolute; z-index:1; left:calc(50% - 40px); top:-2px; width:80px; height:130px; transform-origin:50% 0; transform:rotate(55deg); pointer-events:none; }
+  .ring { position:absolute; z-index:3; left:50%; top:124px; width:20px; height:20px; margin:-10px; border:2px solid var(--accent); border-radius:50%; opacity:0; }
+  .spark { position:absolute; z-index:3; left:50%; top:126px; width:5px; height:5px; margin:-2px; border-radius:50%; background:#ffd2a8;
+    box-shadow:0 0 10px #ff8a4a, 0 0 20px #ff4a00; opacity:0; }
+  .hint { margin:14px 0 0; font-size:12px; color:var(--muted); animation:fadeIn .8s ease 1.2s backwards; }
 
-  .play .hammer { animation:swing 2.4s cubic-bezier(.3,0,.4,1) both; }
-  .play .plate { animation:plate 2.4s both; }
-  .play .plate span { animation:lit 2.4s both; }
+  .play .hammer { animation:swing 2.4s linear both; }
+  .play .plate { animation:plate 2.4s linear both; }
+  .play .plate span { animation:lit 2.4s linear both; }
   .play .ring { animation:ring .7s ease-out .96s both; }
   .play .spark { animation:spark .65s ease-out .96s both; }
-  @keyframes swing { 0%{transform:rotate(62deg)} 28%{transform:rotate(70deg)} 40%{transform:rotate(0)} 46%{transform:rotate(0)} 62%{transform:rotate(16deg)} 100%{transform:rotate(20deg)} }
-  @keyframes plate { 0%,38%{transform:none} 41%{transform:translateY(5px) rotate(-1.2deg)} 45%{transform:translateY(-2px) rotate(.8deg)} 52%,100%{transform:none} }
-  @keyframes lit { 0%,38%{opacity:.18; text-shadow:none} 42%{opacity:1; color:#fff; text-shadow:0 0 40px #ff7a3a} 100%{opacity:1; color:var(--accent); text-shadow:0 0 22px rgba(232,88,43,.7)} }
+  @keyframes swing {
+    0%   { transform:rotate(55deg); animation-timing-function:cubic-bezier(.45,0,.35,1); }
+    28%  { transform:rotate(92deg); animation-timing-function:linear; }
+    37%  { transform:rotate(95deg); animation-timing-function:cubic-bezier(.95,0,1,.6); }
+    40%  { transform:rotate(0deg); animation-timing-function:cubic-bezier(.2,.7,.4,1); }
+    44%  { transform:rotate(11deg); animation-timing-function:cubic-bezier(.6,0,.8,.4); }
+    48%  { transform:rotate(1deg); animation-timing-function:cubic-bezier(.2,.7,.4,1); }
+    52%  { transform:rotate(5deg); animation-timing-function:cubic-bezier(.6,0,.8,.4); }
+    56%  { transform:rotate(1deg); animation-timing-function:ease-in-out; }
+    100% { transform:rotate(55deg); }
+  }
+  @keyframes plate {
+    0%,39.5% { transform:none; }
+    40%   { transform:translate(0,8px) rotate(-2.4deg); }
+    42%   { transform:translate(-9px,-3px) rotate(2deg); }
+    44%   { transform:translate(8px,3px) rotate(-1.7deg); }
+    46%   { transform:translate(-6px,-2px) rotate(1.2deg); }
+    48%   { transform:translate(4px,1px) rotate(-.8deg); }
+    50.5% { transform:translate(-2px,0) rotate(.4deg); }
+    54%,100% { transform:none; }
+  }
+  @keyframes lit {
+    0%,39.5% { opacity:.18; color:var(--accent); text-shadow:none; filter:brightness(1); }
+    40%   { opacity:1; color:#fff; text-shadow:0 0 44px #ff9a4a, 0 0 18px #fff; filter:brightness(2); }
+    46%   { opacity:1; color:#ffd9bd; text-shadow:0 0 36px #ff7a3a; filter:brightness(1.5); }
+    62%,100% { opacity:1; color:var(--accent); text-shadow:0 0 22px rgba(232,88,43,.7); filter:brightness(1); }
+  }
   @keyframes ring { 0%{opacity:.9; transform:scale(.5)} 100%{opacity:0; transform:scale(7)} }
   @keyframes spark { 0%{opacity:1; transform:translate(0,0)} 100%{opacity:0; transform:translate(var(--x),var(--y))} }
 
-  /* Sections */
+  /* Sections + scroll reveals */
   section { padding:24px 0 8px; scroll-margin-top:16px; }
-  h2 { margin:0 0 6px; font-size:26px; font-weight:600; letter-spacing:-.01em; }
+  h2 { position:relative; margin:0 0 6px; padding-bottom:12px; font-size:26px; font-weight:600; letter-spacing:-.01em; }
+  h2::after { content:""; position:absolute; left:0; bottom:0; height:3px; width:0; border-radius:3px; background:linear-gradient(90deg,var(--accent),transparent);
+    transition:width 1s var(--ease) .35s; }
+  h2.in::after { width:84px; }
   .lead { margin:0 0 24px; color:var(--muted); }
   .grid { display:grid; gap:24px; }
-  @media (min-width:880px) { .grid { grid-template-columns:1fr 1fr; align-items:start; } }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:24px; }
+  @media (min-width:880px) { .grid { grid-template-columns:1fr 1fr; align-items:stretch; } }
+
+  /* Smoked glass */
+  .card, .step { background:rgba(20,18,18,.6); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+    border:1px solid rgba(255,255,255,.07);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 8px 24px rgba(0,0,0,.4); }
+  .card { position:relative; border-radius:14px; padding:24px; transition:background .5s, border-color .5s, box-shadow .5s; }
+  .card > * { position:relative; z-index:1; }
+  .card::before { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; opacity:0; transition:opacity .4s;
+    background:radial-gradient(420px circle at var(--mx,50%) var(--my,0%), rgba(255,140,70,.11), transparent 60%); }
+  .card:hover::before { opacity:1; }
+  .card:has(#result.spam[style*="display: block"]) {
+    background:radial-gradient(90% 70% at 50% 0%, rgba(255,98,98,.16), transparent 70%), rgba(20,18,18,.6);
+    border-color:rgba(255,98,98,.3); box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 8px 24px rgba(0,0,0,.4), 0 0 44px rgba(255,98,98,.1); }
+  .card:has(#result.ham[style*="display: block"]) {
+    background:radial-gradient(90% 70% at 50% 0%, rgba(76,209,131,.14), transparent 70%), rgba(20,18,18,.6);
+    border-color:rgba(76,209,131,.28); box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 8px 24px rgba(0,0,0,.4), 0 0 44px rgba(76,209,131,.09); }
+
   label { display:block; margin:0 0 8px; font-size:14px; font-weight:600; }
-  label:not(:first-child) { margin-top:16px; }
-  input, textarea { width:100%; padding:11px 13px; font:inherit; color:var(--text); background:#080808; border:1px solid var(--line); border-radius:9px; }
+  #subject + label { margin-top:16px; }
+  input, textarea { width:100%; padding:11px 13px; font:inherit; color:var(--text); background:rgba(5,5,5,.55); border:1px solid var(--line); border-radius:9px; transition:box-shadow .3s; }
+  input:focus, textarea:focus { box-shadow:0 0 0 4px rgba(232,88,43,.14); }
   input::placeholder, textarea::placeholder { color:#5f5853; }
   input:focus, textarea:focus { outline:2px solid var(--accent); outline-offset:-1px; border-color:transparent; }
-  textarea { min-height:200px; resize:vertical; }
-  .actions { display:flex; align-items:center; gap:16px; margin-top:16px; }
+  textarea { min-height:300px; resize:vertical; }
   button { font:inherit; cursor:pointer; }
   button:focus-visible, a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-  .primary { padding:11px 22px; border:0; border-radius:10px; background:linear-gradient(180deg,#d4552b,var(--accent2)); color:#fff; font-weight:600; }
+
+  /* Examples */
+  .examples { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:0 0 20px; font-size:13px; color:var(--muted); }
+  .badge { padding:5px 14px; border-radius:999px; font-size:13px; color:var(--text); background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.12); transition:background .2s,border-color .2s,color .2s,transform .2s var(--ease); }
+  .badge:hover { transform:translateY(-2px) scale(1.04); }
+  .badge:active { transform:scale(.96); }
+  #ex-spam:hover { background:rgba(255,98,98,.14); border-color:rgba(255,98,98,.5); color:var(--spam); }
+  #ex-phish:hover { background:rgba(240,195,106,.14); border-color:rgba(240,195,106,.5); color:var(--warn); }
+  #ex-ham:hover { background:rgba(76,209,131,.14); border-color:rgba(76,209,131,.5); color:var(--ham); }
+
+  /* Actions row */
+  .actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-top:16px; }
+  .primary { position:relative; overflow:hidden; min-width:220px; padding:16px 36px; border:0; border-radius:12px; background:linear-gradient(180deg,#e0602f,var(--accent2));
+    color:#fff; font-size:17px; font-weight:700; letter-spacing:.01em; box-shadow:0 8px 28px rgba(232,88,43,.35), inset 0 1px 0 rgba(255,255,255,.25); transition:filter .2s,transform .2s var(--ease),box-shadow .3s; }
+  .primary::after { content:""; position:absolute; top:0; bottom:0; left:-60%; width:40%; transform:skewX(-20deg); pointer-events:none;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent); transition:left .7s var(--ease); }
+  .primary:hover:not(:disabled) { filter:brightness(1.1); transform:translateY(-2px); box-shadow:0 12px 36px rgba(232,88,43,.5), inset 0 1px 0 rgba(255,255,255,.25); }
+  .primary:hover:not(:disabled)::after { left:130%; }
+  .primary:active:not(:disabled) { transform:translateY(0) scale(.98); }
   .primary:disabled { opacity:.7; cursor:progress; }
   .link { padding:0; border:0; background:none; color:var(--muted); font-size:14px; text-decoration:underline; text-underline-offset:3px; }
   .link:hover { color:var(--text); }
-  .examples { display:flex; align-items:center; gap:12px; margin-top:16px; font-size:14px; color:var(--muted); }
+  .ghost { margin-left:auto; padding:10px 18px; border-radius:10px; background:transparent; border:1px solid rgba(255,255,255,.14);
+    color:var(--muted); font-size:14px; text-decoration:none; transition:background .2s,border-color .2s,color .2s; }
+  .ghost:hover { background:rgba(255,98,98,.1); border-color:rgba(255,98,98,.6); color:var(--spam); }
+  @media (max-width:600px) { .primary { width:100%; } }
   #error { display:none; margin-top:16px; color:var(--spam); font-size:14px; }
 
   /* Scanner */
@@ -106,83 +229,201 @@
   .line { left:0; right:0; top:0; height:2px; background:var(--accent); box-shadow:0 0 14px 3px rgba(232,88,43,.6); }
   .beam { left:0; right:0; top:-30px; height:60px; background:linear-gradient(transparent,rgba(232,88,43,.22),transparent); }
   .scanning .frame,.scanning .line,.scanning .beam { opacity:1; }
-  .scanning textarea { border-color:var(--accent); background:#120c09; }
+  .scanning textarea { border-color:var(--accent); background-color:#120c09; }
   .scanning .line { animation:sweepLine 2s ease-in-out; }
   .scanning .beam { animation:sweepBeam 2s ease-in-out; }
   @keyframes sweepLine { 0%,100%{top:0} 50%{top:calc(100% - 2px)} }
   @keyframes sweepBeam { 0%,100%{top:-30px} 50%{top:calc(100% - 30px)} }
 
   /* Result */
-  #placeholder { padding:64px 16px; text-align:center; color:var(--muted); font-size:14px; }
+  #placeholder { padding:48px 16px; text-align:center; color:var(--muted); font-size:14px; }
   #placeholder.busy { color:var(--text); }
-  .pulse { display:none; width:10px; height:10px; margin:0 auto 12px; border-radius:50%; background:var(--accent); }
-  .busy .pulse { display:block; animation:pulse 1s ease-in-out infinite; }
-  @keyframes pulse { 0%,100%{transform:scale(.7);opacity:.5} 50%{transform:scale(1.2);opacity:1} }
+  #ptext { display:block; font-size:15px; color:#cfc8c2; }
+  .ph-sub { display:block; margin-top:10px; font-size:12.5px; color:#7a716b; }
+  .busy .ph-sub { display:none; }
+  kbd { padding:1px 6px; border-radius:5px; border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.05); font:11.5px ui-monospace,Consolas,monospace; color:#cfc8c2; }
+  .pulse { position:relative; display:block; width:84px; height:84px; margin:0 auto 22px; border-radius:50%; }
+  .pulse::before { content:""; position:absolute; inset:0; border-radius:50%; border:1.5px dashed rgba(232,88,43,.55); animation:spinSlow 14s linear infinite; }
+  .pulse::after { content:""; position:absolute; inset:28px; border-radius:50%; background:radial-gradient(circle,#ffb27a,var(--accent)); box-shadow:0 0 22px rgba(232,88,43,.8); animation:idle 2.8s ease-in-out infinite; }
+  .busy .pulse { animation:wave 1.4s ease-out infinite; }
+  .busy .pulse::before { animation-duration:2s; border-color:var(--accent); }
+  .busy .pulse::after { animation-duration:.8s; }
+  @keyframes spinSlow { to{ transform:rotate(360deg) } }
+  @keyframes idle { 0%,100%{ transform:scale(.8); opacity:.7 } 50%{ transform:scale(1.1); opacity:1 } }
+  @keyframes wave { 0%{ box-shadow:0 0 0 0 rgba(232,88,43,.45) } 100%{ box-shadow:0 0 0 38px rgba(232,88,43,0) } }
   #result { display:none; }
   #result.show { animation:rise .5s ease; }
   @keyframes rise { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+  #result.show > * { animation:introUp .6s var(--ease) backwards; }
+  #result.show > :nth-child(1) { animation-delay:.05s; } #result.show > :nth-child(2) { animation-delay:.12s; }
+  #result.show > :nth-child(3) { animation-delay:.18s; } #result.show > :nth-child(4) { animation-delay:.24s; }
+  #result.show > :nth-child(5) { animation-delay:.3s; } #result.show > :nth-child(6) { animation-delay:.36s; }
+  #result.show > :nth-child(7) { animation-delay:.42s; } #result.show > :nth-child(8) { animation-delay:.48s; }
+  #result.show > :nth-child(9) { animation-delay:.54s; }
   .head { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
   #verdict { display:inline-flex; align-items:center; gap:8px; padding:4px 14px; border-radius:999px; font-size:18px; font-weight:700; }
   #verdict::before { content:""; width:8px; height:8px; border-radius:50%; background:currentColor; }
+  #result.show #verdict { animation:stamp .7s cubic-bezier(.2,1.5,.4,1) .1s backwards, ping 1.6s ease-out .7s 2; }
+  @keyframes stamp { from{ opacity:0; transform:scale(1.8) rotate(-6deg) } to{ opacity:1; transform:none } }
+  @keyframes ping { 0%{ box-shadow:0 0 0 0 currentColor } 100%{ box-shadow:0 0 0 18px transparent } }
   .spam #verdict { color:var(--spam); background:rgba(255,98,98,.12); }
   .ham #verdict { color:var(--ham); background:rgba(76,209,131,.12); }
-  #percent { color:var(--muted); font-size:14px; }
+  #percent { color:var(--muted); font-size:14px; font-variant-numeric:tabular-nums; }
   .bar { position:relative; height:8px; margin:12px 0 8px; border-radius:4px; background:#241f1d; overflow:hidden; }
-  .fill { height:100%; width:0; transition:width .4s ease; }
-  .spam .fill { background:var(--spam); } .ham .fill { background:var(--ham); }
+  .fill { position:relative; overflow:hidden; height:100%; width:0; transition:width .9s var(--ease); }
+  .fill::after { content:""; position:absolute; inset:0; transform:translateX(-100%); background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent); animation:barShine 2.2s ease-in-out 1s infinite; }
+  @keyframes barShine { to{ transform:translateX(100%) } }
+  .spam .fill { background:var(--spam); box-shadow:0 0 12px rgba(255,98,98,.6); }
+  .ham .fill { background:var(--ham); box-shadow:0 0 12px rgba(76,209,131,.5); }
   .bar::after { content:""; position:absolute; left:50%; top:0; bottom:0; width:2px; background:var(--panel); }
   #borderline { display:none; margin:8px 0 0; color:var(--warn); font-size:14px; }
   h3 { margin:20px 0 8px; font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
   .chips { display:flex; flex-wrap:wrap; gap:6px; }
-  .chip { padding:2px 10px; border-radius:999px; font-size:13px; border:1px solid var(--line); animation:pop .35s ease both; }
+  .chip { padding:2px 10px; border-radius:999px; font-size:13px; border:1px solid var(--line); animation:pop .35s ease both; transition:transform .2s var(--ease); }
+  .chip:hover { transform:translateY(-2px) scale(1.06); }
   .chip.s { background:rgba(255,98,98,.12); border-color:transparent; color:var(--spam); }
   .chip.h { background:rgba(76,209,131,.12); border-color:transparent; color:var(--ham); }
   @keyframes pop { from{opacity:0;transform:scale(.85)} to{opacity:1;transform:none} }
-  .hl { max-height:180px; overflow:auto; padding:12px; border:1px solid var(--line); border-radius:9px; background:#080808; font-size:14px; white-space:pre-wrap; word-break:break-word; }
-  mark { color:inherit; border-radius:3px; padding:0 2px; }
+  .hl { max-height:180px; overflow:auto; padding:12px; border:1px solid var(--line); border-radius:9px; background:rgba(5,5,5,.55); font-size:14px; white-space:pre-wrap; word-break:break-word; }
+  mark { color:inherit; border-radius:3px; padding:0 2px; animation:markIn .6s ease .5s backwards; }
+  @keyframes markIn { from{ background:transparent; box-shadow:inset 0 0 0 transparent } }
   mark.s { background:rgba(255,98,98,.16); box-shadow:inset 0 -2px var(--spam); }
   mark.h { background:rgba(76,209,131,.16); box-shadow:inset 0 -2px var(--ham); }
 
   /* Explanation */
   .steps { display:grid; gap:16px; }
   @media (min-width:880px) { .steps { grid-template-columns:repeat(2,1fr); } }
-  .step { position:relative; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px 20px 20px 64px; transition:border-color .4s,box-shadow .4s; }
-  .step.live { border-color:#7a3318; box-shadow:0 0 0 1px rgba(232,88,43,.25), 0 10px 30px rgba(232,88,43,.08); }
+  .step { position:relative; border-radius:14px; padding:20px 20px 20px 64px; transition:border-color .4s,box-shadow .4s; }
+  .step.live { border-color:#7a3318; box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 8px 24px rgba(0,0,0,.4), 0 0 0 1px rgba(232,88,43,.25), 0 10px 30px rgba(232,88,43,.1); }
+  .step.live .num { animation:numPulse 2.6s ease-in-out infinite; }
+  @keyframes numPulse { 0%,100%{ box-shadow:0 0 0 0 rgba(232,88,43,.5) } 50%{ box-shadow:0 0 0 8px rgba(232,88,43,0) } }
   .num { position:absolute; left:18px; top:18px; width:32px; height:32px; display:grid; place-items:center; border-radius:50%;
-    background:rgba(232,88,43,.16); border:1px solid #7a3318; color:var(--accent); font-weight:700; }
+    background:rgba(232,88,43,.16); border:1px solid #7a3318; color:var(--accent); font-weight:700; transition:transform .4s var(--ease), background .3s; }
+  .step:hover .num { transform:rotate(360deg) scale(1.1); background:rgba(232,88,43,.32); }
   .step h4 { margin:0 0 6px; font-size:17px; }
   .step p { margin:0 0 8px; font-size:14px; color:var(--muted); }
   .step p b, .step p code { color:var(--text); font-weight:600; }
-  code.prev { display:block; padding:8px 10px; border-radius:8px; background:#080808; border:1px solid var(--line); color:#cfc8c2;
+  code.prev { display:block; padding:8px 10px; border-radius:8px; background:rgba(5,5,5,.55); border:1px solid var(--line); color:#cfc8c2;
     font:12px/1.5 ui-monospace,Consolas,monospace; max-height:76px; overflow:auto; word-break:break-word; }
   .contrib { display:grid; grid-template-columns:110px 1fr; gap:4px 10px; align-items:center; margin:8px 0; font-size:12px; color:var(--muted); }
   .contrib .t { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .contrib .b { height:6px; border-radius:3px; }
+  .contrib .b { height:6px; border-radius:3px; transform-origin:0 50%; animation:grow .8s var(--ease) backwards; }
+  @keyframes grow { from{ transform:scaleX(0) } }
   .contrib .b.s { background:var(--spam); } .contrib .b.h { background:var(--ham); }
   .formula { font:13px ui-monospace,Consolas,monospace; color:var(--text); }
 
-  .note { margin:32px 0 0; padding:16px 20px; border:1px solid var(--line); border-radius:12px; color:var(--muted); font-size:14px; }
+  /* Scanner windows */
+  .card { --padx:24px; --pady:24px; --hot:rgba(255,120,50,.95); padding:var(--pady) var(--padx); }
+  .card::after { content:""; position:absolute; inset:0; padding:1px; border-radius:inherit; pointer-events:none; opacity:.55; transition:opacity .4s;
+    background:conic-gradient(from var(--ang), transparent 0 62%, var(--hot) 82%, transparent 100%);
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite:xor; mask-composite:exclude;
+    animation:spinAng 7s linear infinite; }
+  .card:hover::after { opacity:1; }
+  @keyframes spinAng { to{ --ang:360deg } }
+  .card:has(#result.spam[style*="display: block"]) { --hot:rgba(255,98,98,.95); }
+  .card:has(#result.ham[style*="display: block"]) { --hot:rgba(76,209,131,.95); }
+  .card-head { display:flex; align-items:center; gap:12px; margin:calc(var(--pady) * -1) calc(var(--padx) * -1) 20px; padding:12px 18px;
+    border-bottom:1px solid rgba(255,255,255,.07); border-radius:14px 14px 0 0;
+    background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.012)); }
+  .dots { display:inline-flex; gap:6px; }
+  .dots i { width:10px; height:10px; border-radius:50%; background:#e8582b; opacity:.85; }
+  .dots i:nth-child(2) { background:#f0c36a; } .dots i:nth-child(3) { background:#4cd183; }
+  .ch-title { font:12.5px ui-monospace,Consolas,monospace; color:var(--muted); }
+  .ch-right { margin-left:auto; display:inline-flex; align-items:center; gap:8px; font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .led { width:9px; height:9px; border-radius:50%; background:#5f5853; transition:background .3s, box-shadow .3s; }
+  .status::after { content:"Idle"; }
+  .card:has(#placeholder.busy) .led { background:var(--accent); box-shadow:0 0 10px var(--accent); animation:idle .8s ease-in-out infinite; }
+  .card:has(#placeholder.busy) .status::after { content:"Scanning"; color:var(--text); }
+  .card:has(#result.spam[style*="display: block"]) .led { background:var(--spam); box-shadow:0 0 12px var(--spam); }
+  .card:has(#result.spam[style*="display: block"]) .status::after { content:"Spam detected"; color:var(--spam); }
+  .card:has(#result.ham[style*="display: block"]) .led { background:var(--ham); box-shadow:0 0 12px var(--ham); }
+  .card:has(#result.ham[style*="display: block"]) .status::after { content:"Looks clean"; color:var(--ham); }
+  .out { display:flex; flex-direction:column; }
+  .out #placeholder { margin-block:auto; width:100%; }
+  #subject { padding:13px 14px; font-size:15px; }
+  #body { line-height:24px; padding-top:12px; background-image:repeating-linear-gradient(transparent 0 23px, rgba(255,255,255,.045) 23px 24px); background-attachment:local; }
+  label { color:#d8d1cb; }
+
+  /* Model report */
+  .model { position:relative; overflow:hidden; padding:28px; border-radius:20px;
+    background:radial-gradient(70% 90% at 0% 0%, rgba(232,88,43,.18), transparent 60%), radial-gradient(60% 80% at 100% 100%, rgba(255,74,0,.08), transparent 60%), rgba(20,18,18,.6);
+    -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.08);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 8px 24px rgba(0,0,0,.4); }
+  .model::after { content:""; position:absolute; top:0; left:-40%; width:30%; height:2px; background:linear-gradient(90deg,transparent,var(--accent),transparent); animation:edge 5s ease-in-out infinite; }
+  @keyframes edge { 0%{ left:-40% } 100%{ left:110% } }
+  .mc-head { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:6px 16px; margin-bottom:22px; }
+  .mc-title { font-family:var(--brand); font-size:21px; font-weight:700; }
+  .mc-sub { font-size:13px; color:var(--muted); }
+  .mc-body { display:grid; gap:28px; align-items:center; }
+  @media (min-width:760px) { .mc-body { grid-template-columns:210px 1fr; } .mc-body.solo { grid-template-columns:1fr; } }
+  .gauge { position:relative; width:190px; max-width:100%; margin:0 auto; }
+  .gauge svg { display:block; width:100%; height:auto; }
+  .gauge circle { fill:none; stroke-width:9; }
+  .gauge .trk { stroke:rgba(255,255,255,.07); }
+  .gauge .arc { stroke:url(#gg); stroke-linecap:round; stroke-dasharray:339.29; stroke-dashoffset:339.29; transform:rotate(-90deg); transform-origin:50% 50%; transform-box:fill-box;
+    transition:stroke-dashoffset 1.8s var(--ease) .5s; filter:drop-shadow(0 0 6px rgba(232,88,43,.7)); }
+  .model.in .gauge .arc { stroke-dashoffset:var(--off); }
+  .gv { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .gv b { font-family:var(--brand); font-size:34px; font-weight:800; line-height:1; font-variant-numeric:tabular-nums; }
+  .gv span { margin-top:5px; font-size:12px; color:var(--muted); }
+  .mc-tiles { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); }
+  .tile { padding:14px 16px; border-radius:12px; background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.07);
+    transition:transform .3s var(--ease), border-color .3s, background .3s, box-shadow .3s; }
+  .tile.wide { grid-column:1 / -1; }
+  .tile.wide .tv { font-family:var(--brand); font-size:30px; }
+  .model.in .tile { animation:introUp .6s var(--ease) backwards; }
+  .tile:hover { transform:translateY(-4px); border-color:rgba(232,88,43,.5); background:rgba(232,88,43,.08); box-shadow:0 10px 24px rgba(232,88,43,.14); }
+  .tile .ti { display:block; font-size:18px; margin-bottom:4px; }
+  .tile .tv { display:block; font-size:24px; font-weight:700; line-height:1.2; font-variant-numeric:tabular-nums; }
+  .tile .tl { display:block; font-size:12.5px; color:var(--muted); }
+  .tile.good .tv { color:var(--ham); } .tile.warn .tv { color:var(--warn); } .tile.bad .tv { color:var(--spam); }
+  .mc-notes { list-style:none; margin:22px 0 0; padding:0; display:grid; gap:8px; }
+  .mc-notes li { display:flex; gap:10px; align-items:flex-start; font-size:14px; color:#cfc8c2; }
+  .mc-notes li::before { content:""; flex:none; width:8px; height:8px; margin-top:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 10px var(--accent); }
+  .model.in .mc-notes li { animation:introUp .6s var(--ease) backwards; }
+  .model.in .mc-notes li:nth-child(1) { animation-delay:.9s; } .model.in .mc-notes li:nth-child(2) { animation-delay:1s; } .model.in .mc-notes li:nth-child(3) { animation-delay:1.1s; }
+
   footer { padding:24px 0 40px; text-align:center; font-size:13px; color:var(--muted); }
-  @media (max-width:520px) { .card { padding:18px 16px; } .step { padding-left:58px; } }
-  @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; scroll-behavior:auto !important; } }
+  @media (max-width:520px) { .card { --padx:16px; --pady:18px; } .step { padding-left:58px; } }
+
+  /* Scroll reveal (only active when JS is running) */
+  .js .reveal { opacity:0; transform:translate(var(--tx,0px), var(--ty,40px)) scale(.96); filter:blur(6px);
+    transition:opacity .9s var(--ease) var(--d,0s), transform .9s var(--ease) var(--d,0s), filter .9s var(--ease) var(--d,0s); }
+  .js .card.reveal { transition:opacity .9s var(--ease) var(--d,0s), transform .9s var(--ease) var(--d,0s), filter .9s var(--ease) var(--d,0s), background .5s, border-color .5s, box-shadow .5s; }
+  .js .step.reveal { transition:opacity .9s var(--ease) var(--d,0s), transform .9s var(--ease) var(--d,0s), filter .9s var(--ease) var(--d,0s), border-color .4s, box-shadow .4s; }
+  .js .reveal.in { opacity:1; transform:none; filter:none; }
+  html .reveal.done { transition-delay:0s !important; }
+  .rl { --tx:-60px; --ty:0px; } .rr { --tx:60px; --ty:0px; }
+  @media (max-width:879px) { .rl, .rr { --tx:0px; --ty:40px; } }
+  .js .step.reveal.in:hover { transform:translateY(-4px); border-color:rgba(232,88,43,.45); }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; } }
 </style>
 </head>
 <body>
+<div id="progress" aria-hidden="true"></div>
+<div class="embers" id="embers" aria-hidden="true"></div>
+
+<aside class="sidenav" aria-label="Page sections">
+  <a class="sn on" href="#top" aria-label="Home"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg><span class="lb">Home</span></a>
+  <a class="sn" href="#scanner" aria-label="Scanner"><svg viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 011-1h3M16 4h3a1 1 0 011 1v3M20 16v3a1 1 0 01-1 1h-3M8 20H5a1 1 0 01-1-1v-3M4 12h16"/></svg><span class="lb">Scanner</span></a>
+  <a class="sn" href="#how" aria-label="How it works"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span class="lb">How it works</span></a>
+  <a class="sn" href="#model" aria-label="Model"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg><span class="lb">Model</span></a>
+</aside>
+
 <div class="wrap">
   <nav>
     <div class="logo">HAMMER</div>
-    <div class="pill"><a href="#top">Home</a><a href="#scanner">Scanner</a><a href="#how">How it works</a></div>
-    <a class="ghostbtn" href="https://github.com/AKIB2005/email-spam-detector" target="_blank" rel="noopener">View code</a>
   </nav>
 
   <header class="hero" id="top">
     <div class="forge play" id="forge" role="img" aria-label="A hammer strikes the HAMMER nameplate. Click to replay.">
       <div class="plate"><span>HAMMER</span></div>
-      <svg class="hammer" viewBox="0 0 80 172" aria-hidden="true">
+      <svg class="hammer" viewBox="0 0 80 130" aria-hidden="true">
         <defs><linearGradient id="hd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a8480"/><stop offset="1" stop-color="#3a3532"/></linearGradient></defs>
-        <rect x="34" y="0" width="12" height="136" rx="5" fill="#7a4a2a"/>
-        <rect x="0" y="126" width="80" height="44" rx="8" fill="url(#hd)" stroke="#1a1716" stroke-width="2"/>
-        <rect x="6" y="132" width="68" height="5" rx="2.5" fill="#fff" opacity=".18"/>
+        <rect x="34" y="0" width="12" height="100" rx="5" fill="#7a4a2a"/>
+        <rect x="1" y="86" width="78" height="43" rx="8" fill="url(#hd)" stroke="#1a1716" stroke-width="2"/>
+        <rect x="7" y="92" width="66" height="5" rx="2.5" fill="#fff" opacity=".18"/>
       </svg>
       <div class="ring"></div>
       <i class="spark" style="--x:-70px;--y:-50px"></i><i class="spark" style="--x:-40px;--y:-78px"></i><i class="spark" style="--x:-10px;--y:-90px"></i>
@@ -194,17 +435,23 @@
     <p class="tag">SCAN. SCORE. BLOCK.</p>
     <h1>Hit The Spam Before It Hits <span class="hw">Your Inbox</span></h1>
     <p class="sub">Paste any email. HAMMER scans it, scores it with a machine learning model and shows you exactly why.</p>
-    <p class="proof" id="proof"></p>
+    <div class="stats-row" id="proof"></div>
     <a class="cta" href="#scanner" id="start">Start Scanning &rarr;</a>
   </header>
 
   <section id="scanner">
-    <h2>Scanner</h2>
-    <p class="lead">Runs in your browser. Nothing you paste is sent anywhere.</p>
+    <h2 class="reveal">Scanner</h2>
+    <p class="lead reveal">Runs in your browser. Nothing you paste is sent anywhere.</p>
     <div class="grid">
-      <div class="card">
+      <div class="card reveal rl">
+        <div class="card-head"><span class="dots"><i></i><i></i><i></i></span><span class="ch-title">compose.eml</span><span class="ch-right" id="count">0 words &middot; 0 chars</span></div>
+        <div class="examples">Try an example:
+          <button class="badge" id="ex-spam" type="button">Spam</button>
+          <button class="badge" id="ex-phish" type="button">Phishing</button>
+          <button class="badge" id="ex-ham" type="button">Normal</button>
+        </div>
         <label for="subject">Subject</label>
-        <input id="subject" type="text" autocomplete="off">
+        <input id="subject" type="text" autocomplete="off" placeholder="What is the email about?">
         <label for="body">Email body</label>
         <div class="scan-box" id="scanbox">
           <textarea id="body" placeholder="Paste the email text here"></textarea>
@@ -212,18 +459,14 @@
         </div>
         <div class="actions">
           <button class="primary" id="check" type="button">Check email</button>
-          <button class="link" id="clear" type="button">Clear</button>
-        </div>
-        <div class="examples">Examples:
-          <button class="link" id="ex-spam" type="button">Spam</button>
-          <button class="link" id="ex-phish" type="button">Phishing</button>
-          <button class="link" id="ex-ham" type="button">Normal</button>
+          <button class="ghost" id="clear" type="button">Clear</button>
         </div>
         <div id="error" role="alert"></div>
       </div>
 
-      <div class="card" aria-live="polite">
-        <div id="placeholder"><div class="pulse"></div><span id="ptext">The result will appear here.</span></div>
+      <div class="card out reveal rr" aria-live="polite">
+        <div class="card-head"><span class="dots"><i></i><i></i><i></i></span><span class="ch-title">verdict.report</span><span class="ch-right"><i class="led"></i><span class="status"></span></span></div>
+        <div id="placeholder"><div class="pulse"></div><span id="ptext">The result will appear here.</span><small class="ph-sub">Pick an example or paste an email, then press <kbd>Ctrl</kbd> + <kbd>Enter</kbd></small></div>
         <div id="result">
           <div class="head"><div id="verdict"></div><div id="percent"></div></div>
           <div class="bar"><div class="fill" id="fill"></div></div>
@@ -237,44 +480,190 @@
   </section>
 
   <section id="how">
-    <h2>How HAMMER decided</h2>
-    <p class="lead" id="howlead">Run a scan and this section fills in with the real numbers from your email.</p>
+    <h2 class="reveal">How HAMMER decided</h2>
+    <p class="lead reveal" id="howlead">Run a scan and this section fills in with the real numbers from your email.</p>
     <div class="steps">
-      <div class="step" id="s1"><div class="num">1</div><h4>Clean the email</h4>
+      <div class="step reveal" id="s1"><div class="num">1</div><h4>Clean the email</h4>
         <p id="s1t">HTML is stripped, then links, email addresses and numbers are replaced with placeholder tokens so the model learns patterns, not exact values.</p><code class="prev" id="s1c" hidden></code></div>
-      <div class="step" id="s2"><div class="num">2</div><h4>Pick out the words that matter</h4>
+      <div class="step reveal" id="s2"><div class="num">2</div><h4>Pick out the words that matter</h4>
         <p id="s2t">Common words like "the" are dropped. Single words and word pairs are matched against the 20,000 features the model learned during training.</p></div>
-      <div class="step" id="s3"><div class="num">3</div><h4>Add up the evidence</h4>
+      <div class="step reveal" id="s3"><div class="num">3</div><h4>Add up the evidence</h4>
         <p id="s3t">Every matched feature has a learned weight: positive pushes toward spam, negative toward legitimate. The weighted TF-IDF values are summed with a starting bias.</p>
         <div id="s3c"></div></div>
-      <div class="step" id="s4"><div class="num">4</div><h4>Turn it into a verdict</h4>
+      <div class="step reveal" id="s4"><div class="num">4</div><h4>Turn it into a verdict</h4>
         <p id="s4t">The score becomes a probability between 0% and 100%. Above the 50% decision line the email is called spam.</p></div>
     </div>
-    <div class="note" id="about"></div>
+  </section>
+
+  <section id="model">
+    <h2 class="reveal">The model behind it</h2>
+    <p class="lead reveal">Which model made the call, how many emails it learned from, and how it scored on emails it had never seen.</p>
+    <div class="model reveal" id="about"><p class="mc-sub">Model details appear here once model.js has loaded.</p></div>
   </section>
 
   <footer>HAMMER &middot; Python (scikit-learn) + JavaScript &middot; <a href="https://github.com/AKIB2005/email-spam-detector" target="_blank" rel="noopener">Source on GitHub</a></footer>
 </div>
 
+<!-- Visual effects: independent of the model so the page never stays hidden if a script fails -->
+<script>
+(function () {
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+
+  /* Shared helpers used by the main script too */
+  window.tween = function (from, to, dur, cb) {
+    if (reduced) { cb(to); return; }
+    var t0 = performance.now();
+    (function f(now) {
+      var p = Math.min(1, (now - t0) / dur);
+      cb(from + (to - from) * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) requestAnimationFrame(f);
+    })(t0);
+  };
+  window.runCounters = function (root, delay) {
+    $$(".cnt", root).forEach(function (el) {
+      var to = parseFloat(el.dataset.to), dec = parseInt(el.dataset.dec || "0", 10), suf = el.dataset.suf || "";
+      var fmt = function (v) { return (dec ? v.toFixed(dec) : Math.round(v).toLocaleString()) + suf; };
+      if (isNaN(to)) return;
+      if (reduced) { el.textContent = fmt(to); return; }
+      el.textContent = fmt(0);
+      setTimeout(function () { window.tween(0, to, 1300, function (v) { el.textContent = fmt(v); }); }, delay || 0);
+    });
+  };
+
+  /* Staggers */
+  $$(".steps .step").forEach(function (el, i) { el.style.setProperty("--d", ((i % 2) * 0.12 + Math.floor(i / 2) * 0.1) + "s"); });
+  $$(".grid .card").forEach(function (el, i) { el.style.setProperty("--d", i * 0.15 + "s"); });
+  $$(".lead.reveal").forEach(function (el) { el.style.setProperty("--d", "0.1s"); });
+
+  /* Scroll reveal */
+  var revealEls = $$(".reveal");
+  function reveal(el) {
+    el.classList.add("in");
+    var d = parseFloat(el.style.getPropertyValue("--d")) || 0;
+    setTimeout(function () { el.classList.add("done"); }, 1100 + d * 1000);
+    if (el.querySelector(".cnt") || el.id === "about") setTimeout(function () { window.runCounters(el, 500); }, 0);
+  }
+  if ("IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { if (e.isIntersecting) { reveal(e.target); io.unobserve(e.target); } });
+    }, { threshold: 0.12, rootMargin: "0px 0px -6% 0px" });
+    revealEls.forEach(function (el) { io.observe(el); });
+  } else { revealEls.forEach(reveal); }
+
+  /* Side nav: highlight the section in view */
+  var links = $$(".sn");
+  if ("IntersectionObserver" in window) {
+    var nav = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) links.forEach(function (l) { l.classList.toggle("on", l.getAttribute("href") === "#" + e.target.id); });
+      });
+    }, { rootMargin: "-40% 0px -50% 0px" });
+    ["top", "scanner", "how", "model"].forEach(function (id) { var s = document.getElementById(id); if (s) nav.observe(s); });
+  }
+
+  /* Scroll progress bar */
+  var bar = document.getElementById("progress"), ticking = false;
+  function progress() {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.transform = "scaleX(" + (h > 0 ? Math.min(1, window.scrollY / h) : 0) + ")";
+    if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 4) {
+      revealEls.forEach(function (el) { if (!el.classList.contains("in")) reveal(el); });
+    }
+    ticking = false;
+  }
+  window.addEventListener("scroll", function () { if (!ticking) { ticking = true; requestAnimationFrame(progress); } }, { passive: true });
+  progress();
+
+  /* Cursor spotlight on cards */
+  $$(".card").forEach(function (c) {
+    c.addEventListener("pointermove", function (e) {
+      var r = c.getBoundingClientRect();
+      c.style.setProperty("--mx", (e.clientX - r.left) + "px");
+      c.style.setProperty("--my", (e.clientY - r.top) + "px");
+    });
+  });
+
+  /* Floating embers */
+  if (!reduced) {
+    var box = document.getElementById("embers");
+    for (var i = 0; i < 18; i++) {
+      var s = document.createElement("i");
+      s.className = "ember";
+      s.style.setProperty("--x", Math.random() * 100 + "%");
+      s.style.setProperty("--s", (2 + Math.random() * 3) + "px");
+      s.style.setProperty("--dx", (Math.random() * 120 - 60) + "px");
+      s.style.setProperty("--t", (9 + Math.random() * 10) + "s");
+      s.style.setProperty("--d", (-Math.random() * 18) + "s");
+      box.appendChild(s);
+    }
+  }
+})();
+</script>
+
 <script src="model.js"></script>
 <script src="spam.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  const detector = SpamDetector.create(SPAM_MODEL);
-  const m = SPAM_MODEL.metrics;
+  const SM = typeof SPAM_MODEL !== "undefined" ? SPAM_MODEL : {};
+  let detector = null;
+  try { detector = SpamDetector.create(SPAM_MODEL); } catch (err) { console.error("HAMMER: model failed to load", err); }
+  const m = SM.metrics || {};
+  const acc = typeof m.accuracy === "number" ? m.accuracy * 100 : null;
+  const nEmails = typeof SM.n_emails === "number" ? SM.n_emails : null;
 
   /* Hammer intro + replay */
   const forge = $("forge");
   function swing() { forge.classList.remove("play"); void forge.offsetWidth; forge.classList.add("play"); }
   forge.onclick = swing;
 
-  $("proof").innerHTML = "<b>" + (m.accuracy * 100).toFixed(1) + "%</b> test accuracy &middot; trained on " +
-    SPAM_MODEL.n_emails.toLocaleString() + " emails &middot; runs in your browser";
+  /* Stats row: three badges (numbers count up after the hammer strike) */
+  const cntB = (to, dec, suf, text) => '<b class="cnt" data-to="' + to + '" data-dec="' + dec + '" data-suf="' + suf + '">' + text + '</b>';
+  $("proof").innerHTML =
+    '<div class="stat"><span class="ico">\uD83C\uDFAF</span><span>' + (acc == null ? "<b>n/a</b>" : cntB(acc.toFixed(1), 1, "%", acc.toFixed(1) + "%")) + ' Accuracy</span></div>' +
+    '<div class="stat"><span class="ico">\u2709\uFE0F</span><span>' + (nEmails == null ? "<b>n/a</b>" : cntB(nEmails, 0, "", nEmails.toLocaleString())) + ' Emails Trained</span></div>' +
+    '<div class="stat"><span class="ico">\uD83D\uDD12</span><span>Runs Locally</span></div>';
+  if (window.runCounters) window.runCounters($("proof"), 1600);
+
   $("start").onclick = () => setTimeout(() => $("subject").focus({ preventScroll: true }), 600);
-  $("about").textContent = "Model: " + (SPAM_MODEL.model_name === "naive_bayes" ? "Naive Bayes" : "Logistic Regression") +
-    " on TF-IDF features, tested on a held-out 20% of the data (" + m.false_positives + " real emails wrongly flagged, " +
-    m.false_negatives + " spam missed). It reads text only, not sender, headers or attachments, and it was trained on the Enron corpus, " +
-    "so it is best at classic spam and phishing. Modern marketing emails can get uncertain scores.";
+
+  /* Model report */
+  const algo = SM.model_name === "naive_bayes" ? "Naive Bayes" : SM.model_name ? "Logistic Regression" : "Model not loaded";
+  const fmtN = (v) => (typeof v === "number" ? v.toLocaleString() : "n/a");
+  const num = (v, dec, suf) => (typeof v === "number" ? { to: v, dec: dec || 0, suf: suf || "" } : null);
+  const tile = (i, icon, value, label, cls, cnt) =>
+    '<div class="tile ' + (cls || "") + '" style="animation-delay:' + (0.3 + i * 0.09) + 's"><span class="ti">' + icon + '</span>' +
+    (cnt ? '<span class="tv cnt" data-to="' + cnt.to + '" data-dec="' + cnt.dec + '" data-suf="' + cnt.suf + '">' + value + '</span>'
+         : '<span class="tv">' + value + '</span>') +
+    '<span class="tl">' + label + '</span></div>';
+  const gauge = acc == null ? "" :
+    '<div class="gauge" style="--off:' + (339.29 * (1 - acc / 100)).toFixed(1) + '">' +
+      '<svg viewBox="0 0 130 130" aria-hidden="true"><defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb27a"/><stop offset="1" stop-color="#e8582b"/></linearGradient></defs>' +
+      '<circle class="trk" cx="65" cy="65" r="54"/><circle class="arc" cx="65" cy="65" r="54"/></svg>' +
+      '<div class="gv">' + cntB(acc.toFixed(1), 1, "%", acc.toFixed(1) + "%") + '<span>test accuracy</span></div></div>';
+  $("about").innerHTML =
+    '<div class="mc-head"><span class="mc-title">Model report</span><span class="mc-sub">Scored on a 20% slice of emails it never saw during training</span></div>' +
+    '<div class="mc-body' + (gauge ? "" : " solo") + '">' + gauge +
+      '<div class="mc-tiles">' +
+        tile(0, "\uD83E\uDDE0", algo, "Model used, reading TF-IDF word and phrase features", "wide") +
+        tile(1, "\u2709\uFE0F", fmtN(nEmails), "Emails trained", "", num(nEmails)) +
+        tile(2, "\uD83E\uDDEA", "20%", "Held out for testing") +
+        tile(3, "\u26A0\uFE0F", fmtN(m.false_positives), "Real emails wrongly flagged", "warn", num(m.false_positives)) +
+        tile(4, "\uD83D\uDD73\uFE0F", fmtN(m.false_negatives), "Spam missed", "bad", num(m.false_negatives)) +
+      '</div>' +
+    '</div>' +
+    '<ul class="mc-notes">' +
+      '<li>Reads text only, not sender, headers or attachments.</li>' +
+      '<li>Trained on the Enron corpus, so it is best at classic spam and phishing.</li>' +
+      '<li>Modern marketing emails can get uncertain scores.</li>' +
+    '</ul>';
+
+  /* Live word and character counter */
+  function updateCount() {
+    const v = $("body").value, t = v.trim(), w = t ? t.split(/\s+/).length : 0;
+    $("count").textContent = w.toLocaleString() + " word" + (w === 1 ? "" : "s") + " \u00B7 " + v.length.toLocaleString() + " chars";
+  }
+  $("body").addEventListener("input", updateCount);
 
   /* Examples */
   const EXAMPLES = {
@@ -283,7 +672,7 @@
     "ex-ham": ["DSA assignment deadline", "Hi everyone, please submit the linked list assignment by Friday. Reach out if you have any doubts."],
   };
   Object.keys(EXAMPLES).forEach((id) => {
-    $(id).onclick = () => { $("subject").value = EXAMPLES[id][0]; $("body").value = EXAMPLES[id][1]; check(); };
+    $(id).onclick = () => { $("subject").value = EXAMPLES[id][0]; $("body").value = EXAMPLES[id][1]; updateCount(); check(); };
   });
 
   /* Result helpers */
@@ -339,11 +728,12 @@
     box.textContent = "";
     const grid = document.createElement("div");
     grid.className = "contrib";
-    top.forEach((c) => {
+    top.forEach((c, i) => {
       const t = document.createElement("div"), bar = document.createElement("div");
       t.className = "t"; t.textContent = c.term;
       bar.className = "b " + (c.value > 0 ? "s" : "h");
       bar.style.width = Math.max(4, (Math.abs(c.value) / max) * 100) + "%";
+      bar.style.animationDelay = 0.2 + i * 0.07 + "s";
       grid.appendChild(t); grid.appendChild(bar);
     });
     box.appendChild(grid);
@@ -375,6 +765,7 @@
     $("result").style.display = "block";
     $("verdict").textContent = r.label === "spam" ? "Likely spam" : "Looks legitimate";
     $("percent").textContent = pct + "% spam probability";
+    if (window.tween && !REDUCED) window.tween(0, pct, 900, (v) => { $("percent").textContent = Math.round(v) + "% spam probability"; });
     $("fill").style.width = "0%";
     requestAnimationFrame(() => { $("fill").style.width = pct + "%"; });
     $("borderline").style.display = p > 0.35 && p < 0.65 ? "block" : "none";
@@ -392,6 +783,7 @@
 
   function check() {
     if (busy) return;
+    if (!detector) return hide("The model could not be loaded. Keep model.js and spam.js in the same folder as this page.");
     const subject = $("subject").value, body = $("body").value;
     const r = detector.predict(subject, body);
     if (!r) return hide("Enter a subject or some email text first.");
@@ -420,7 +812,7 @@
   }
 
   $("check").onclick = check;
-  $("clear").onclick = () => { if (busy) return; $("subject").value = ""; $("body").value = ""; hide(); $("subject").focus(); };
+  $("clear").onclick = () => { if (busy) return; $("subject").value = ""; $("body").value = ""; updateCount(); hide(); $("subject").focus(); };
   document.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") check(); });
 </script>
 </body>
