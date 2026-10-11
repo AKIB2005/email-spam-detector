@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HAMMER - Email Spam Detector</title>
+<meta name="description" content="HAMMER scans an email, scores it with a machine learning model and shows exactly why. Runs entirely in your browser.">
+<meta name="theme-color" content="#050505">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%94%A8%3C/text%3E%3C/svg%3E">
+<style>
+  :root { --bg:#050505; --panel:#0e0d0d; --line:#2a2422; --text:#f2eeea; --muted:#9a918b; --accent:#e8582b; --accent2:#b9411d;
+    --spam:#ff6262; --ham:#4cd183; --warn:#f0c36a; }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; overflow-x:hidden; }
+  body::before { content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+    background: radial-gradient(55% 45% at 50% 38%, rgba(200,75,30,.20), transparent 70%),
+      repeating-linear-gradient(135deg, transparent 0 90px, rgba(255,255,255,.022) 90px 91px); }
+  .wrap { max-width:1040px; margin:0 auto; padding:0 20px; }
+  a { color:inherit; }
+
+  /* Nav */
+  nav { display:flex; justify-content:space-between; align-items:center; padding:20px 0; }
+  .logo { font-weight:800; letter-spacing:.14em; font-size:15px; }
+  .pill { display:flex; gap:4px; padding:6px; border:1px solid var(--line); border-radius:10px; background:rgba(14,13,13,.8); }
+  .pill a { padding:6px 14px; border-radius:7px; text-decoration:none; font-size:14px; color:var(--muted); }
+  .pill a:hover { color:var(--text); background:#1a1716; }
+  .ghostbtn { padding:7px 16px; border:1px solid #7a3318; border-radius:999px; background:rgba(232,88,43,.12); color:var(--text); font-size:14px; text-decoration:none; }
+  @media (max-width:720px) { .pill { display:none; } }
+
+  /* Hero */
+  .hero { position:relative; text-align:center; padding:12px 0 72px; }
+  .hero::before { content:""; position:absolute; inset:0; pointer-events:none; opacity:.5;
+    background: radial-gradient(rgba(255,255,255,.16) 1px, transparent 1.2px) 0 0/16px 16px;
+    -webkit-mask-image: linear-gradient(90deg,#000 0,transparent 20%,transparent 80%,#000 100%);
+    mask-image: linear-gradient(90deg,#000 0,transparent 20%,transparent 80%,#000 100%); }
+  .hero > * { position:relative; }
+  .tag { margin:8px 0 14px; color:var(--accent); letter-spacing:.06em; font-size:15px; }
+  h1 { margin:0 auto; max-width:820px; font-size:clamp(34px,6vw,64px); line-height:1.15; font-weight:500; letter-spacing:-.02em; }
+  .hw { position:relative; display:inline-block; padding:0 14px; margin:0 4px; border:1px solid #a63d1d; background:rgba(232,88,43,.18); }
+  .hw::before { content:""; position:absolute; inset:-3px; pointer-events:none; background:
+    linear-gradient(#fff,#fff) 0 0/6px 6px no-repeat, linear-gradient(#fff,#fff) 100% 0/6px 6px no-repeat,
+    linear-gradient(#fff,#fff) 0 100%/6px 6px no-repeat, linear-gradient(#fff,#fff) 100% 100%/6px 6px no-repeat; }
+  .sub { margin:20px auto 0; max-width:620px; color:#cfc8c2; font-size:18px; }
+  .proof { margin:20px 0 28px; color:var(--muted); font-size:14px; }
+  .proof b { color:var(--accent); }
+  .cta { display:inline-block; padding:14px 34px; border:0; border-radius:12px; cursor:pointer; text-decoration:none;
+    background:linear-gradient(180deg,#d4552b,var(--accent2)); color:#fff; font:600 17px inherit; box-shadow:0 8px 30px rgba(232,88,43,.28); }
+  .cta:hover { filter:brightness(1.1); }
+
+  /* Forge: hammer + nameplate */
+  .forge { position:relative; width:340px; height:210px; margin:0 auto; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .plate { position:absolute; left:20px; right:20px; bottom:0; height:84px; display:grid; place-items:center; border-radius:12px;
+    background:linear-gradient(180deg,#1d1918,#0d0b0b); border:1px solid #3a2f2b; box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 14px 40px rgba(0,0,0,.6); }
+  .plate::before, .plate::after { content:""; position:absolute; top:-40px; width:2px; height:40px; background:linear-gradient(#0000,#4a3d38); }
+  .plate::before { left:36px; } .plate::after { right:36px; }
+  .plate span { font-size:40px; font-weight:800; letter-spacing:.28em; padding-left:.28em; color:var(--accent);
+    text-shadow:0 0 22px rgba(232,88,43,.7); }
+  .hammer { position:absolute; left:calc(50% - 40px); top:-62px; width:80px; height:172px; transform-origin:50% 0; transform:rotate(20deg); pointer-events:none; }
+  .ring { position:absolute; left:50%; top:120px; width:20px; height:20px; margin:-10px; border:2px solid var(--accent); border-radius:50%; opacity:0; }
+  .spark { position:absolute; left:50%; top:122px; width:5px; height:5px; margin:-2px; border-radius:50%; background:#ffb27a; box-shadow:0 0 8px #ff8a4a; opacity:0; }
+  .hint { margin:14px 0 0; font-size:12px; color:var(--muted); }
+
+  .play .hammer { animation:swing 2.4s cubic-bezier(.3,0,.4,1) both; }
+  .play .plate { animation:plate 2.4s both; }
+  .play .plate span { animation:lit 2.4s both; }
+  .play .ring { animation:ring .7s ease-out .96s both; }
+  .play .spark { animation:spark .65s ease-out .96s both; }
+  @keyframes swing { 0%{transform:rotate(62deg)} 28%{transform:rotate(70deg)} 40%{transform:rotate(0)} 46%{transform:rotate(0)} 62%{transform:rotate(16deg)} 100%{transform:rotate(20deg)} }
+  @keyframes plate { 0%,38%{transform:none} 41%{transform:translateY(5px) rotate(-1.2deg)} 45%{transform:translateY(-2px) rotate(.8deg)} 52%,100%{transform:none} }
+  @keyframes lit { 0%,38%{opacity:.18; text-shadow:none} 42%{opacity:1; color:#fff; text-shadow:0 0 40px #ff7a3a} 100%{opacity:1; color:var(--accent); text-shadow:0 0 22px rgba(232,88,43,.7)} }
+  @keyframes ring { 0%{opacity:.9; transform:scale(.5)} 100%{opacity:0; transform:scale(7)} }
+  @keyframes spark { 0%{opacity:1; transform:translate(0,0)} 100%{opacity:0; transform:translate(var(--x),var(--y))} }
+
+  /* Sections */
+  section { padding:24px 0 8px; scroll-margin-top:16px; }
+  h2 { margin:0 0 6px; font-size:26px; font-weight:600; letter-spacing:-.01em; }
+  .lead { margin:0 0 24px; color:var(--muted); }
+  .grid { display:grid; gap:24px; }
+  @media (min-width:880px) { .grid { grid-template-columns:1fr 1fr; align-items:start; } }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:24px; }
+  label { display:block; margin:0 0 8px; font-size:14px; font-weight:600; }
+  label:not(:first-child) { margin-top:16px; }
+  input, textarea { width:100%; padding:11px 13px; font:inherit; color:var(--text); background:#080808; border:1px solid var(--line); border-radius:9px; }
+  input::placeholder, textarea::placeholder { color:#5f5853; }
+  input:focus, textarea:focus { outline:2px solid var(--accent); outline-offset:-1px; border-color:transparent; }
+  textarea { min-height:200px; resize:vertical; }
+  .actions { display:flex; align-items:center; gap:16px; margin-top:16px; }
+  button { font:inherit; cursor:pointer; }
+  button:focus-visible, a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .primary { padding:11px 22px; border:0; border-radius:10px; background:linear-gradient(180deg,#d4552b,var(--accent2)); color:#fff; font-weight:600; }
+  .primary:disabled { opacity:.7; cursor:progress; }
+  .link { padding:0; border:0; background:none; color:var(--muted); font-size:14px; text-decoration:underline; text-underline-offset:3px; }
+  .link:hover { color:var(--text); }
+  .examples { display:flex; align-items:center; gap:12px; margin-top:16px; font-size:14px; color:var(--muted); }
+  #error { display:none; margin-top:16px; color:var(--spam); font-size:14px; }
+
+  /* Scanner */
+  .scan-box { position:relative; overflow:hidden; border-radius:9px; }
+  .scan-box textarea { display:block; transition:background-color .3s,border-color .3s; }
+  .frame,.beam,.line { position:absolute; pointer-events:none; opacity:0; transition:opacity .2s; }
+  .frame { --c:var(--accent); inset:6px; background-repeat:no-repeat;
+    background-image:linear-gradient(var(--c),var(--c)),linear-gradient(var(--c),var(--c)),linear-gradient(var(--c),var(--c)),linear-gradient(var(--c),var(--c)),linear-gradient(var(--c),var(--c)),linear-gradient(var(--c),var(--c)),linear-gradient(var(--c),var(--c)),linear-gradient(var(--c),var(--c));
+    background-position:0 0,0 0,100% 0,100% 0,0 100%,0 100%,100% 100%,100% 100%;
+    background-size:18px 2px,2px 18px,18px 2px,2px 18px,18px 2px,2px 18px,18px 2px,2px 18px; }
+  .line { left:0; right:0; top:0; height:2px; background:var(--accent); box-shadow:0 0 14px 3px rgba(232,88,43,.6); }
+  .beam { left:0; right:0; top:-30px; height:60px; background:linear-gradient(transparent,rgba(232,88,43,.22),transparent); }
+  .scanning .frame,.scanning .line,.scanning .beam { opacity:1; }
+  .scanning textarea { border-color:var(--accent); background:#120c09; }
+  .scanning .line { animation:sweepLine 2s ease-in-out; }
+  .scanning .beam { animation:sweepBeam 2s ease-in-out; }
+  @keyframes sweepLine { 0%,100%{top:0} 50%{top:calc(100% - 2px)} }
+  @keyframes sweepBeam { 0%,100%{top:-30px} 50%{top:calc(100% - 30px)} }
+
+  /* Result */
+  #placeholder { padding:64px 16px; text-align:center; color:var(--muted); font-size:14px; }
+  #placeholder.busy { color:var(--text); }
+  .pulse { display:none; width:10px; height:10px; margin:0 auto 12px; border-radius:50%; background:var(--accent); }
+  .busy .pulse { display:block; animation:pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{transform:scale(.7);opacity:.5} 50%{transform:scale(1.2);opacity:1} }
+  #result { display:none; }
+  #result.show { animation:rise .5s ease; }
+  @keyframes rise { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+  .head { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+  #verdict { display:inline-flex; align-items:center; gap:8px; padding:4px 14px; border-radius:999px; font-size:18px; font-weight:700; }
+  #verdict::before { content:""; width:8px; height:8px; border-radius:50%; background:currentColor; }
+  .spam #verdict { color:var(--spam); background:rgba(255,98,98,.12); }
+  .ham #verdict { color:var(--ham); background:rgba(76,209,131,.12); }
+  #percent { color:var(--muted); font-size:14px; }
+  .bar { position:relative; height:8px; margin:12px 0 8px; border-radius:4px; background:#241f1d; overflow:hidden; }
+  .fill { height:100%; width:0; transition:width .4s ease; }
+  .spam .fill { background:var(--spam); } .ham .fill { background:var(--ham); }
+  .bar::after { content:""; position:absolute; left:50%; top:0; bottom:0; width:2px; background:var(--panel); }
+  #borderline { display:none; margin:8px 0 0; color:var(--warn); font-size:14px; }
+  h3 { margin:20px 0 8px; font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { padding:2px 10px; border-radius:999px; font-size:13px; border:1px solid var(--line); animation:pop .35s ease both; }
+  .chip.s { background:rgba(255,98,98,.12); border-color:transparent; color:var(--spam); }
+  .chip.h { background:rgba(76,209,131,.12); border-color:transparent; color:var(--ham); }
+  @keyframes pop { from{opacity:0;transform:scale(.85)} to{opacity:1;transform:none} }
+  .hl { max-height:180px; overflow:auto; padding:12px; border:1px solid var(--line); border-radius:9px; background:#080808; font-size:14px; white-space:pre-wrap; word-break:break-word; }
+  mark { color:inherit; border-radius:3px; padding:0 2px; }
+  mark.s { background:rgba(255,98,98,.16); box-shadow:inset 0 -2px var(--spam); }
+  mark.h { background:rgba(76,209,131,.16); box-shadow:inset 0 -2px var(--ham); }
+
+  /* Explanation */
+  .steps { display:grid; gap:16px; }
+  @media (min-width:880px) { .steps { grid-template-columns:repeat(2,1fr); } }
+  .step { position:relative; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px 20px 20px 64px; transition:border-color .4s,box-shadow .4s; }
+  .step.live { border-color:#7a3318; box-shadow:0 0 0 1px rgba(232,88,43,.25), 0 10px 30px rgba(232,88,43,.08); }
+  .num { position:absolute; left:18px; top:18px; width:32px; height:32px; display:grid; place-items:center; border-radius:50%;
+    background:rgba(232,88,43,.16); border:1px solid #7a3318; color:var(--accent); font-weight:700; }
+  .step h4 { margin:0 0 6px; font-size:17px; }
+  .step p { margin:0 0 8px; font-size:14px; color:var(--muted); }
+  .step p b, .step p code { color:var(--text); font-weight:600; }
+  code.prev { display:block; padding:8px 10px; border-radius:8px; background:#080808; border:1px solid var(--line); color:#cfc8c2;
+    font:12px/1.5 ui-monospace,Consolas,monospace; max-height:76px; overflow:auto; word-break:break-word; }
+  .contrib { display:grid; grid-template-columns:110px 1fr; gap:4px 10px; align-items:center; margin:8px 0; font-size:12px; color:var(--muted); }
+  .contrib .t { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .contrib .b { height:6px; border-radius:3px; }
+  .contrib .b.s { background:var(--spam); } .contrib .b.h { background:var(--ham); }
+  .formula { font:13px ui-monospace,Consolas,monospace; color:var(--text); }
+
+  .note { margin:32px 0 0; padding:16px 20px; border:1px solid var(--line); border-radius:12px; color:var(--muted); font-size:14px; }
+  footer { padding:24px 0 40px; text-align:center; font-size:13px; color:var(--muted); }
+  @media (max-width:520px) { .card { padding:18px 16px; } .step { padding-left:58px; } }
+  @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; scroll-behavior:auto !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <div class="logo">HAMMER</div>
+    <div class="pill"><a href="#top">Home</a><a href="#scanner">Scanner</a><a href="#how">How it works</a></div>
+    <a class="ghostbtn" href="https://github.com/AKIB2005/email-spam-detector" target="_blank" rel="noopener">View code</a>
+  </nav>
+
+  <header class="hero" id="top">
+    <div class="forge play" id="forge" role="img" aria-label="A hammer strikes the HAMMER nameplate. Click to replay.">
+      <div class="plate"><span>HAMMER</span></div>
+      <svg class="hammer" viewBox="0 0 80 172" aria-hidden="true">
+        <defs><linearGradient id="hd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a8480"/><stop offset="1" stop-color="#3a3532"/></linearGradient></defs>
+        <rect x="34" y="0" width="12" height="136" rx="5" fill="#7a4a2a"/>
+        <rect x="0" y="126" width="80" height="44" rx="8" fill="url(#hd)" stroke="#1a1716" stroke-width="2"/>
+        <rect x="6" y="132" width="68" height="5" rx="2.5" fill="#fff" opacity=".18"/>
+      </svg>
+      <div class="ring"></div>
+      <i class="spark" style="--x:-70px;--y:-50px"></i><i class="spark" style="--x:-40px;--y:-78px"></i><i class="spark" style="--x:-10px;--y:-90px"></i>
+      <i class="spark" style="--x:22px;--y:-84px"></i><i class="spark" style="--x:56px;--y:-66px"></i><i class="spark" style="--x:84px;--y:-38px"></i>
+      <i class="spark" style="--x:-90px;--y:-16px"></i><i class="spark" style="--x:96px;--y:-12px"></i>
+    </div>
+    <p class="hint">Click the nameplate to swing again</p>
+
+    <p class="tag">SCAN. SCORE. BLOCK.</p>
+    <h1>Hit The Spam Before It Hits <span class="hw">Your Inbox</span></h1>
+    <p class="sub">Paste any email. HAMMER scans it, scores it with a machine learning model and shows you exactly why.</p>
+    <p class="proof" id="proof"></p>
+    <a class="cta" href="#scanner" id="start">Start Scanning &rarr;</a>
+  </header>
+
+  <section id="scanner">
+    <h2>Scanner</h2>
+    <p class="lead">Runs in your browser. Nothing you paste is sent anywhere.</p>
+    <div class="grid">
+      <div class="card">
+        <label for="subject">Subject</label>
+        <input id="subject" type="text" autocomplete="off">
+        <label for="body">Email body</label>
+        <div class="scan-box" id="scanbox">
+          <textarea id="body" placeholder="Paste the email text here"></textarea>
+          <div class="frame"></div><div class="beam"></div><div class="line"></div>
+        </div>
+        <div class="actions">
+          <button class="primary" id="check" type="button">Check email</button>
+          <button class="link" id="clear" type="button">Clear</button>
+        </div>
+        <div class="examples">Examples:
+          <button class="link" id="ex-spam" type="button">Spam</button>
+          <button class="link" id="ex-phish" type="button">Phishing</button>
+          <button class="link" id="ex-ham" type="button">Normal</button>
+        </div>
+        <div id="error" role="alert"></div>
+      </div>
+
+      <div class="card" aria-live="polite">
+        <div id="placeholder"><div class="pulse"></div><span id="ptext">The result will appear here.</span></div>
+        <div id="result">
+          <div class="head"><div id="verdict"></div><div id="percent"></div></div>
+          <div class="bar"><div class="fill" id="fill"></div></div>
+          <p id="borderline">Close to the decision line, so treat this result with caution.</p>
+          <h3>Pushing toward spam</h3><div class="chips" id="spam-words"></div>
+          <h3>Pushing toward legitimate</h3><div class="chips" id="ham-words"></div>
+          <h3>Your email</h3><div class="hl" id="highlight"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <h2>How HAMMER decided</h2>
+    <p class="lead" id="howlead">Run a scan and this section fills in with the real numbers from your email.</p>
+    <div class="steps">
+      <div class="step" id="s1"><div class="num">1</div><h4>Clean the email</h4>
+        <p id="s1t">HTML is stripped, then links, email addresses and numbers are replaced with placeholder tokens so the model learns patterns, not exact values.</p><code class="prev" id="s1c" hidden></code></div>
+      <div class="step" id="s2"><div class="num">2</div><h4>Pick out the words that matter</h4>
+        <p id="s2t">Common words like "the" are dropped. Single words and word pairs are matched against the 20,000 features the model learned during training.</p></div>
+      <div class="step" id="s3"><div class="num">3</div><h4>Add up the evidence</h4>
+        <p id="s3t">Every matched feature has a learned weight: positive pushes toward spam, negative toward legitimate. The weighted TF-IDF values are summed with a starting bias.</p>
+        <div id="s3c"></div></div>
+      <div class="step" id="s4"><div class="num">4</div><h4>Turn it into a verdict</h4>
+        <p id="s4t">The score becomes a probability between 0% and 100%. Above the 50% decision line the email is called spam.</p></div>
+    </div>
+    <div class="note" id="about"></div>
+  </section>
+
+  <footer>HAMMER &middot; Python (scikit-learn) + JavaScript &middot; <a href="https://github.com/AKIB2005/email-spam-detector" target="_blank" rel="noopener">Source on GitHub</a></footer>
+</div>
+
+<script src="model.js"></script>
+<script src="spam.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const detector = SpamDetector.create(SPAM_MODEL);
+  const m = SPAM_MODEL.metrics;
+
+  /* Hammer intro + replay */
+  const forge = $("forge");
+  function swing() { forge.classList.remove("play"); void forge.offsetWidth; forge.classList.add("play"); }
+  forge.onclick = swing;
+
+  $("proof").innerHTML = "<b>" + (m.accuracy * 100).toFixed(1) + "%</b> test accuracy &middot; trained on " +
+    SPAM_MODEL.n_emails.toLocaleString() + " emails &middot; runs in your browser";
+  $("start").onclick = () => setTimeout(() => $("subject").focus({ preventScroll: true }), 600);
+  $("about").textContent = "Model: " + (SPAM_MODEL.model_name === "naive_bayes" ? "Naive Bayes" : "Logistic Regression") +
+    " on TF-IDF features, tested on a held-out 20% of the data (" + m.false_positives + " real emails wrongly flagged, " +
+    m.false_negatives + " spam missed). It reads text only, not sender, headers or attachments, and it was trained on the Enron corpus, " +
+    "so it is best at classic spam and phishing. Modern marketing emails can get uncertain scores.";
+
+  /* Examples */
+  const EXAMPLES = {
+    "ex-spam": ["You won $1,000,000!!!", "Congratulations! Click http://claim-prize.xyz now to receive your FREE reward. Limited time offer, act now!"],
+    "ex-phish": ["Your account is suspended", "Dear customer, we detected unusual sign-in activity. Verify your password within 24 hours at http://secure-login.example.com or your account will be closed."],
+    "ex-ham": ["DSA assignment deadline", "Hi everyone, please submit the linked list assignment by Friday. Reach out if you have any doubts."],
+  };
+  Object.keys(EXAMPLES).forEach((id) => {
+    $(id).onclick = () => { $("subject").value = EXAMPLES[id][0]; $("body").value = EXAMPLES[id][1]; check(); };
+  });
+
+  /* Result helpers */
+  function chips(id, words, cls) {
+    const box = $(id);
+    box.textContent = "";
+    if (!words.length) { box.textContent = "None found"; return; }
+    words.forEach((w, i) => {
+      const c = document.createElement("span");
+      c.className = "chip " + cls;
+      c.style.animationDelay = i * 45 + "ms";
+      c.textContent = w.term;
+      box.appendChild(c);
+    });
+  }
+
+  function highlight(text, contributions) {
+    const spam = new Set(), ham = new Set();
+    contributions.filter((c) => c.value > 0 && !c.term.includes(" ")).slice(0, 12).forEach((c) => spam.add(c.term));
+    contributions.filter((c) => c.value < 0 && !c.term.includes(" ")).slice(-12).forEach((c) => ham.add(c.term));
+    const box = $("highlight");
+    box.textContent = "";
+    (text.match(/[A-Za-z]+|[^A-Za-z]+/g) || []).forEach((chunk) => {
+      const w = chunk.toLowerCase();
+      if (spam.has(w) || ham.has(w)) {
+        const el = document.createElement("mark");
+        el.className = spam.has(w) ? "s" : "h";
+        el.textContent = chunk;
+        box.appendChild(el);
+      } else box.appendChild(document.createTextNode(chunk));
+    });
+  }
+
+  /* Step-by-step explanation with the real numbers */
+  function explain(r) {
+    const p = r.replaced, pct = Math.round(r.spamProbability * 100), evidence = r.score - r.bias;
+    const plural = (n, w) => n + " " + w + (n === 1 ? "" : w.endsWith("ss") ? "es" : "s");
+    $("howlead").textContent = "This is what HAMMER did to your email, step by step.";
+
+    $("s1t").innerHTML = "Replaced <b>" + plural(p.links, "link") + "</b>, <b>" + plural(p.emails, "email address") +
+      "</b> and <b>" + plural(p.numbers, "number") + "</b>, and removed <b>" + plural(p.htmlTags, "HTML tag") + "</b>. Cleaned text:";
+    $("s1c").hidden = false;
+    $("s1c").textContent = r.cleaned.length > 220 ? r.cleaned.slice(0, 220) + "..." : r.cleaned;
+
+    $("s2t").innerHTML = "Kept <b>" + plural(r.tokens, "meaningful word") + "</b> after dropping common ones. <b>" +
+      r.featuresFound + "</b> of the <b>" + r.vocabSize.toLocaleString() + "</b> features the model knows were found in this email.";
+
+    $("s3t").innerHTML = "Starting bias <b>" + r.bias.toFixed(2) + "</b> + word evidence <b>" + evidence.toFixed(2) +
+      "</b> = score <b>" + r.score.toFixed(2) + "</b>. Strongest signals:";
+    const top = r.spamWords.slice(0, 4).concat(r.hamWords.slice(0, 4));
+    const max = Math.max(...top.map((c) => Math.abs(c.value)), 1e-9);
+    const box = $("s3c");
+    box.textContent = "";
+    const grid = document.createElement("div");
+    grid.className = "contrib";
+    top.forEach((c) => {
+      const t = document.createElement("div"), bar = document.createElement("div");
+      t.className = "t"; t.textContent = c.term;
+      bar.className = "b " + (c.value > 0 ? "s" : "h");
+      bar.style.width = Math.max(4, (Math.abs(c.value) / max) * 100) + "%";
+      grid.appendChild(t); grid.appendChild(bar);
+    });
+    box.appendChild(grid);
+
+    $("s4t").innerHTML = '<span class="formula">1 / (1 + e<sup>-' + r.score.toFixed(2) + "</sup>) = " + pct + "%</span><br>" +
+      "<b>" + pct + "%</b> is " + (r.label === "spam" ? "above" : "below") + " the 50% decision line, so the verdict is <b>" +
+      (r.label === "spam" ? "Likely spam" : "Looks legitimate") + "</b>.";
+
+    document.querySelectorAll(".step").forEach((s, i) => {
+      s.classList.remove("live");
+      setTimeout(() => s.classList.add("live"), 150 * (i + 1));
+    });
+  }
+
+  function hide(error) {
+    $("result").style.display = "none";
+    $("placeholder").style.display = "block";
+    $("ptext").textContent = "The result will appear here.";
+    $("error").style.display = error ? "block" : "none";
+    if (error) $("error").textContent = error;
+  }
+
+  function show(r, subject, body) {
+    const p = r.spamProbability, pct = Math.round(p * 100);
+    $("placeholder").style.display = "none";
+    $("result").className = "";
+    void $("result").offsetWidth;
+    $("result").className = r.label + " show";
+    $("result").style.display = "block";
+    $("verdict").textContent = r.label === "spam" ? "Likely spam" : "Looks legitimate";
+    $("percent").textContent = pct + "% spam probability";
+    $("fill").style.width = "0%";
+    requestAnimationFrame(() => { $("fill").style.width = pct + "%"; });
+    $("borderline").style.display = p > 0.35 && p < 0.65 ? "block" : "none";
+    chips("spam-words", r.spamWords, "s");
+    chips("ham-words", r.hamWords, "h");
+    highlight((subject + "\n" + body).trim(), r.contributions);
+    explain(r);
+  }
+
+  /* The model answers in milliseconds; the scan is a short visual effect */
+  const SCAN_MS = 2000;
+  const STEPS = ["Cleaning the text...", "Extracting words and phrases...", "Scoring the email..."];
+  const REDUCED = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let busy = false;
+
+  function check() {
+    if (busy) return;
+    const subject = $("subject").value, body = $("body").value;
+    const r = detector.predict(subject, body);
+    if (!r) return hide("Enter a subject or some email text first.");
+
+    $("error").style.display = "none";
+    $("result").style.display = "none";
+    if (REDUCED) return show(r, subject, body);
+
+    busy = true;
+    $("scanbox").classList.add("scanning");
+    $("body").readOnly = true;
+    $("check").disabled = true;
+    $("check").textContent = "Scanning...";
+    $("placeholder").style.display = "block";
+    $("placeholder").classList.add("busy");
+    STEPS.forEach((text, i) => setTimeout(() => { if (busy) $("ptext").textContent = text; }, (i * SCAN_MS) / 3));
+    setTimeout(() => {
+      busy = false;
+      $("scanbox").classList.remove("scanning");
+      $("body").readOnly = false;
+      $("check").disabled = false;
+      $("check").textContent = "Check email";
+      $("placeholder").classList.remove("busy");
+      show(r, subject, body);
+    }, SCAN_MS);
+  }
+
+  $("check").onclick = check;
+  $("clear").onclick = () => { if (busy) return; $("subject").value = ""; $("body").value = ""; hide(); $("subject").focus(); };
+  document.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") check(); });
+</script>
+</body>
+</html>

@@ -67,6 +67,15 @@
       const cleaned = prepareEmail(raw);
       if (!cleaned) return null;
 
+      // Facts about the cleaning step, for the explanation view
+      const noUrls = raw.replace(URL_RE, " ");
+      const replaced = {
+        links: (raw.match(URL_RE) || []).length,
+        emails: (noUrls.match(EMAIL_RE) || []).length,
+        numbers: (noUrls.replace(EMAIL_RE, " ").match(/\d+/g) || []).length,
+        htmlTags: (raw.match(TAG_RE) || []).length,
+      };
+
       // Same as scikit-learn: drop stop words, then build unigrams and bigrams
       const tokens = (cleaned.match(/\b\w\w+\b/g) || []).filter((t) => !stop.has(t));
       const counts = new Map();
@@ -109,6 +118,12 @@
         hamWords: contributions.filter((c) => c.value < 0).slice(-5).reverse(),
         featuresFound: contributions.length,
         contributions,
+        cleaned,
+        replaced,
+        tokens: tokens.length,
+        vocabSize: model.terms.length,
+        bias: model.bias,
+        score,
       };
     }
 
