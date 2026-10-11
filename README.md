@@ -2,8 +2,7 @@
 
 A machine learning project that classifies an email as **spam** or **legitimate (ham)**.
 The trained model runs entirely in the browser, so the website is fully static and needs no server.
-
-**Live demo:** https://akib2005.github.io/email-spam-detector/
+It has a light and a dark theme.
 
 ## How it works
 
@@ -32,12 +31,14 @@ Naive Bayes is used because it flags far fewer real emails as spam, which is the
 ## Project structure
 
 ```
-index.html        the website
-spam.js           classifier logic (runs in the browser)
-model.js          exported trained model
-train_export.py   trains the model and writes model.js
-preprocess.py     email cleaning used during training
-requirements.txt  Python dependencies for training
+index.html              the website (light and dark theme)
+spam.js                 classifier logic (runs in the browser)
+model.js                exported trained model
+vercel.json             tells Vercel this is a static site
+training/
+  train_export.py       trains the model and writes ../model.js
+  preprocess.py         email cleaning used during training
+  requirements.txt      Python dependencies for training
 ```
 
 ## Run locally
@@ -46,16 +47,21 @@ Open `index.html` in a browser. No server or installation is needed.
 
 ## Retrain the model
 
-1. Download the email spam dataset from Kaggle and save it as `emails.csv` in this folder (columns: `text` and `spam`).
+1. Download the email spam dataset from Kaggle and save it as `training/emails.csv` (columns: `text` and `spam`).
 2. Run:
 
 ```
+cd training
 pip install -r requirements.txt
 python train_export.py
 ```
 
-This regenerates `model.js`.
+This regenerates `model.js` in the project root.
+
+## Deploy
+
+The site is static, so it works on Vercel, GitHub Pages or Netlify with no build step.
 
 ## Tech
 
-Python, scikit-learn, pandas, JavaScript, HTML/CSS, GitHub Pages
+Python, scikit-learn, pandas, JavaScript, HTML/CSS

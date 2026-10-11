@@ -1,108 +1,306 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Email Spam Detector</title>
+<meta name="description" content="Paste an email and a machine learning model checks whether it looks like spam. Runs entirely in your browser.">
+<meta name="theme-color" content="#4c6ef5">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%A7%3C/text%3E%3C/svg%3E">
+
+<script>
+  // Set the theme before the page paints so there is no flash of the wrong colours
+  (function () {
+    var theme = null;
+    try { theme = localStorage.getItem("theme"); } catch (e) {}
+    if (theme !== "light" && theme !== "dark") {
+      theme = (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+    }
+    document.documentElement.setAttribute("data-theme", theme);
+  })();
+</script>
+
 <style>
+  :root {
+    --bg: #f3f5fb;
+    --bg-glow: #dfe6ff;
+    --card: #ffffff;
+    --text: #172033;
+    --muted: #5d6a80;
+    --border: #dde3ef;
+    --input-bg: #ffffff;
+    --accent: #4c6ef5;
+    --accent-hover: #3b5bdb;
+    --accent-text: #ffffff;
+    --ghost: #eaeefa;
+    --ghost-hover: #dce3f6;
+    --spam-bg: #fdecec;
+    --spam-border: #f3b4b4;
+    --spam-strong: #d63939;
+    --ham-bg: #e7f7ee;
+    --ham-border: #a6dcbb;
+    --ham-strong: #229954;
+    --warn-bg: #fff6e0;
+    --warn-text: #8a5a00;
+    --shadow: 0 10px 40px rgba(30, 50, 110, .10);
+    color-scheme: light;
+  }
+
+  [data-theme="dark"] {
+    --bg: #0d1117;
+    --bg-glow: #18214a;
+    --card: #161b26;
+    --text: #e6eaf3;
+    --muted: #9aa6bb;
+    --border: #283042;
+    --input-bg: #0f1420;
+    --accent: #6d8bff;
+    --accent-hover: #8aa1ff;
+    --accent-text: #0b1020;
+    --ghost: #202838;
+    --ghost-hover: #2a3448;
+    --spam-bg: #2a1518;
+    --spam-border: #6b2b33;
+    --spam-strong: #ff6b6b;
+    --ham-bg: #112519;
+    --ham-border: #1f5a37;
+    --ham-strong: #4cd183;
+    --warn-bg: #2b2310;
+    --warn-text: #f0c36a;
+    --shadow: 0 10px 40px rgba(0, 0, 0, .45);
+    color-scheme: dark;
+  }
+
   * { box-sizing: border-box; }
+
   body {
+    margin: 0;
+    padding: 20px 16px 56px;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    background: #f4f6fb; color: #1b2430; margin: 0; padding: 24px 16px 48px;
+    color: var(--text);
+    background: radial-gradient(ellipse 80% 40% at 50% 0%, var(--bg-glow), transparent 70%), var(--bg);
+    background-attachment: fixed;
+    line-height: 1.5;
+    transition: background-color .25s, color .25s;
   }
+
+  .wrap { max-width: 760px; margin: 0 auto; }
+
+  /* ---------- Header ---------- */
+  header.top {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin-bottom: 18px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; }
+  .logo {
+    width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center;
+    background: var(--accent); color: var(--accent-text); font-size: 1.2rem;
+  }
+  #theme {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--card); color: var(--text); font: inherit; font-size: .9rem; cursor: pointer;
+  }
+  #theme:hover { border-color: var(--accent); }
+
+  /* ---------- Cards ---------- */
   .card {
-    max-width: 720px; margin: 0 auto 18px; background: #fff; padding: 28px;
-    border-radius: 14px; box-shadow: 0 4px 24px rgba(0,0,0,.08);
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 26px; margin-bottom: 18px; box-shadow: var(--shadow);
+    transition: background-color .25s, border-color .25s;
   }
-  h1 { margin: 0 0 4px; font-size: 1.6rem; }
-  h2 { margin: 0 0 10px; font-size: 1.1rem; }
-  p.sub { margin: 0 0 8px; color: #5b6675; }
-  p.privacy { margin: 0 0 18px; color: #5b6675; font-size: .9rem; }
-  label { display: block; font-weight: 600; margin: 14px 0 6px; }
+  h1 { margin: 0 0 6px; font-size: 1.8rem; letter-spacing: -.02em; }
+  h2 { margin: 0 0 12px; font-size: 1.1rem; }
+  .sub { margin: 0 0 6px; color: var(--muted); }
+  .privacy { margin: 0 0 18px; color: var(--muted); font-size: .9rem; }
+
+  .stats { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 20px; }
+  .stat {
+    flex: 1; min-width: 120px; padding: 10px 14px; border-radius: 12px;
+    background: var(--ghost); border: 1px solid var(--border);
+  }
+  .stat b { display: block; font-size: 1.15rem; }
+  .stat span { font-size: .8rem; color: var(--muted); }
+
+  /* ---------- Form ---------- */
+  label { display: block; font-weight: 600; margin: 14px 0 6px; font-size: .95rem; }
   input, textarea {
-    width: 100%; padding: 10px 12px; font: inherit;
-    border: 1px solid #cdd4df; border-radius: 8px;
+    width: 100%; padding: 11px 13px; font: inherit; color: var(--text);
+    background: var(--input-bg); border: 1px solid var(--border); border-radius: 10px;
+    transition: border-color .15s, box-shadow .15s;
   }
-  input:focus, textarea:focus { outline: 2px solid #3b5bdb55; border-color: #3b5bdb; }
-  textarea { min-height: 170px; resize: vertical; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
-  button {
-    font: inherit; padding: 10px 18px; border: 0; border-radius: 8px;
-    cursor: pointer; background: #3b5bdb; color: #fff; font-weight: 600;
+  input::placeholder, textarea::placeholder { color: var(--muted); opacity: .75; }
+  input:focus, textarea:focus {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
   }
-  button:hover { background: #3350c4; }
-  button.ghost { background: #e9edf5; color: #1b2430; font-weight: 500; }
-  button.ghost:hover { background: #dde3ee; }
-  #result { margin-top: 22px; display: none; padding: 18px; border-radius: 10px; }
-  #result.spam { background: #fde8e8; border: 1px solid #f5b5b5; }
-  #result.ham  { background: #e6f6ec; border: 1px solid #a9dcbb; }
-  #verdict { font-size: 1.35rem; font-weight: 700; margin-bottom: 10px; }
-  .bar { height: 12px; background: #fff; border-radius: 6px; overflow: hidden; border: 1px solid #d5dbe6; }
-  .fill { height: 100%; width: 0; transition: width .4s; }
-  .spam .fill { background: #e03131; }
-  .ham .fill { background: #2f9e44; }
-  #detail { margin-top: 8px; color: #46515f; font-size: .95rem; }
-  .why { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 14px; }
-  .why div { flex: 1; min-width: 180px; }
-  .why h3 { margin: 0 0 6px; font-size: .9rem; color: #46515f; }
+  textarea { min-height: 180px; resize: vertical; }
+  .counter { text-align: right; color: var(--muted); font-size: .8rem; margin-top: 4px; }
+
+  .examples { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+  .examples span { color: var(--muted); font-size: .85rem; }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+  button { font: inherit; cursor: pointer; border: 0; border-radius: 10px; }
+  button:focus-visible, #theme:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 2px;
+  }
+  .primary {
+    padding: 11px 22px; background: var(--accent); color: var(--accent-text); font-weight: 700;
+  }
+  .primary:hover { background: var(--accent-hover); }
+  .ghost {
+    padding: 8px 14px; background: var(--ghost); color: var(--text); font-size: .9rem;
+    border: 1px solid var(--border);
+  }
+  .ghost:hover { background: var(--ghost-hover); }
+  .hint { color: var(--muted); font-size: .8rem; }
+
+  #error { display: none; margin-top: 14px; padding: 10px 14px; border-radius: 10px;
+    background: var(--spam-bg); border: 1px solid var(--spam-border); color: var(--spam-strong); }
+
+  /* ---------- Result ---------- */
+  #result { display: none; margin-top: 22px; padding: 20px; border-radius: 14px; border: 1px solid; animation: rise .35s ease; }
+  #result.spam { background: var(--spam-bg); border-color: var(--spam-border); }
+  #result.ham { background: var(--ham-bg); border-color: var(--ham-border); }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  .verdict-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  #verdict { font-size: 1.45rem; font-weight: 800; }
+  .spam #verdict { color: var(--spam-strong); }
+  .ham #verdict { color: var(--ham-strong); }
+  #percent { font-size: 1.1rem; font-weight: 700; }
+
+  .meter { position: relative; height: 12px; margin: 14px 0 6px; border-radius: 999px;
+    background: linear-gradient(90deg, var(--ham-strong), #e8b730 50%, var(--spam-strong)); opacity: .9; }
+  .meter .tick { position: absolute; left: 50%; top: -4px; bottom: -4px; width: 2px; background: var(--text); opacity: .45; }
+  .meter .dot {
+    position: absolute; top: 50%; left: 0; width: 20px; height: 20px; margin: -10px 0 0 -10px;
+    border-radius: 50%; background: var(--card); border: 3px solid var(--text);
+    transition: left .5s cubic-bezier(.2, .8, .2, 1);
+  }
+  .meter-labels { display: flex; justify-content: space-between; font-size: .75rem; color: var(--muted); }
+
+  #borderline { display: none; margin-top: 12px; padding: 8px 12px; border-radius: 10px;
+    background: var(--warn-bg); color: var(--warn-text); font-size: .9rem; }
+
+  .why { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 18px; }
+  .why > div { flex: 1; min-width: 190px; }
+  .why h3 { margin: 0 0 8px; font-size: .85rem; color: var(--muted); font-weight: 600; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { padding: 3px 10px; border-radius: 999px; font-size: .85rem; background: #fff; border: 1px solid #d5dbe6; }
-  .chip.s { border-color: #f1a3a3; }
-  .chip.h { border-color: #8fd0a5; }
-  #error { color: #c92a2a; margin-top: 14px; display: none; }
+  .chip { padding: 3px 11px; border-radius: 999px; font-size: .85rem; background: var(--card);
+    border: 1px solid var(--border); color: var(--text); }
+  .chip.s { border-color: var(--spam-border); }
+  .chip.h { border-color: var(--ham-border); }
+
+  /* ---------- About ---------- */
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 12px 0 18px; }
+  .step { padding: 14px; border-radius: 12px; background: var(--ghost); border: 1px solid var(--border); font-size: .9rem; }
+  .step b { display: block; margin-bottom: 4px; }
+  .step small { color: var(--muted); }
+
+  .table-wrap { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-size: .92rem; }
-  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e6eaf2; }
-  th { color: #5b6675; font-weight: 600; }
-  .note { color: #5b6675; font-size: .9rem; margin: 10px 0 0; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; }
+  .note { color: var(--muted); font-size: .88rem; margin: 12px 0 0; }
+
+  footer { text-align: center; color: var(--muted); font-size: .85rem; margin-top: 8px; }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 520px) {
+    .card { padding: 20px 16px; }
+    h1 { font-size: 1.5rem; }
+    #theme .label { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
 </style>
 </head>
 <body>
+<div class="wrap">
 
-<div class="card">
-  <h1>Email Spam Detector</h1>
-  <p class="sub">Paste an email and the model will tell you whether it looks like spam.</p>
-  <p class="privacy">The model runs inside your browser, so the email you paste is never sent anywhere.</p>
+  <header class="top">
+    <div class="brand"><div class="logo" aria-hidden="true">📧</div><span>Spam Detector</span></div>
+    <button id="theme" type="button" aria-label="Switch between light and dark mode">
+      <span id="theme-icon" aria-hidden="true">🌙</span><span class="label" id="theme-label">Dark mode</span>
+    </button>
+  </header>
 
-  <label for="subject">Subject</label>
-  <input id="subject" type="text" placeholder="e.g. Your account is suspended">
+  <main>
+    <section class="card">
+      <h1>Is this email spam?</h1>
+      <p class="sub">Paste an email below and a machine learning model will check it.</p>
+      <p class="privacy">🔒 The model runs inside your browser. The email you paste is never sent anywhere.</p>
 
-  <label for="body">Email body</label>
-  <textarea id="body" placeholder="Paste the email text here..."></textarea>
+      <div class="stats" id="stats"></div>
 
-  <div class="row">
-    <button id="check">Check email</button>
-    <button class="ghost" id="ex-spam" type="button">Spam example</button>
-    <button class="ghost" id="ex-phish" type="button">Phishing example</button>
-    <button class="ghost" id="ex-ham" type="button">Normal example</button>
-    <button class="ghost" id="clear" type="button">Clear</button>
-  </div>
+      <label for="subject">Subject</label>
+      <input id="subject" type="text" placeholder="e.g. Your account is suspended" autocomplete="off">
 
-  <div id="error"></div>
+      <label for="body">Email body</label>
+      <textarea id="body" placeholder="Paste the email text here..."></textarea>
+      <div class="counter" id="counter">0 words</div>
 
-  <div id="result">
-    <div id="verdict"></div>
-    <div class="bar"><div class="fill" id="fill"></div></div>
-    <div id="detail"></div>
-    <div class="why">
-      <div><h3>Words pushing toward spam</h3><div class="chips" id="spam-words"></div></div>
-      <div><h3>Words pushing toward legitimate</h3><div class="chips" id="ham-words"></div></div>
-    </div>
-  </div>
-</div>
+      <div class="examples">
+        <span>Try an example:</span>
+        <button class="ghost" id="ex-spam" type="button">Spam</button>
+        <button class="ghost" id="ex-phish" type="button">Phishing</button>
+        <button class="ghost" id="ex-ham" type="button">Normal email</button>
+      </div>
 
-<div class="card">
-  <h2>About this model</h2>
-  <p class="sub" id="about"></p>
-  <table>
-    <thead><tr><th>Model</th><th>Accuracy</th><th>Real emails wrongly flagged</th><th>Spam missed</th></tr></thead>
-    <tbody id="results"></tbody>
-  </table>
-  <p class="note">
-    Pipeline: clean the email (remove HTML, replace links, addresses and numbers with tokens) →
-    TF-IDF features (words and word pairs) → linear classifier.
-    Results are on a held-out 20% test set. The training data is the Enron email corpus, so the model
-    is best at spotting classic spam and can be less sure about modern marketing emails.
-  </p>
+      <div class="row">
+        <button class="primary" id="check" type="button">Check email</button>
+        <button class="ghost" id="clear" type="button">Clear</button>
+        <span class="hint">Tip: press Ctrl + Enter</span>
+      </div>
+
+      <div id="error" role="alert"></div>
+
+      <div id="result" aria-live="polite">
+        <div class="verdict-row">
+          <div id="verdict"></div>
+          <div id="percent"></div>
+        </div>
+        <div class="meter" aria-hidden="true"><div class="tick"></div><div class="dot" id="dot"></div></div>
+        <div class="meter-labels"><span>Legitimate</span><span>Model's decision line</span><span>Spam</span></div>
+        <div id="borderline">This score is close to the decision line, so treat the result with caution.</div>
+        <div class="why">
+          <div><h3>Words pushing toward spam</h3><div class="chips" id="spam-words"></div></div>
+          <div><h3>Words pushing toward legitimate</h3><div class="chips" id="ham-words"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>How it works</h2>
+      <div class="steps">
+        <div class="step"><b>1. Clean</b><small>Remove HTML, and replace links, email addresses and numbers with tokens.</small></div>
+        <div class="step"><b>2. Vectorize</b><small>Turn the text into TF-IDF scores for words and word pairs.</small></div>
+        <div class="step"><b>3. Classify</b><small>A linear model turns those scores into a spam probability.</small></div>
+      </div>
+
+      <h2>Model results</h2>
+      <p class="sub" id="about"></p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Model</th><th>Accuracy</th><th>Real emails wrongly flagged</th><th>Spam missed</th></tr></thead>
+          <tbody id="results"></tbody>
+        </table>
+      </div>
+      <p class="note">
+        Results are on a held-out 20% test set. The training data is the Enron email corpus, so the model
+        is best at spotting classic spam and phishing and can be less sure about modern marketing emails.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    Built with Python (scikit-learn) and JavaScript ·
+    <a href="https://github.com/AKIB2005/email-spam-detector" target="_blank" rel="noopener">View source on GitHub</a>
+  </footer>
 </div>
 
 <script src="model.js"></script>
@@ -111,27 +309,44 @@
   const $ = (id) => document.getElementById(id);
   const detector = SpamDetector.create(SPAM_MODEL);
 
+  /* ---------- Theme toggle ---------- */
+  function applyThemeUI() {
+    const dark = document.documentElement.getAttribute("data-theme") === "dark";
+    $("theme-icon").textContent = dark ? "☀️" : "🌙";
+    $("theme-label").textContent = dark ? "Light mode" : "Dark mode";
+  }
+  $("theme").onclick = () => {
+    const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("theme", next); } catch (e) {}
+    applyThemeUI();
+  };
+  applyThemeUI();
+
+  /* ---------- Examples ---------- */
   const EXAMPLES = {
     "ex-spam": ["You won $1,000,000!!!", "Congratulations! Click http://claim-prize.xyz now to receive your FREE reward. Limited time offer, act now!"],
     "ex-phish": ["Your account is suspended", "Dear customer, we detected unusual sign-in activity. Verify your password within 24 hours at http://secure-login.example.com or your account will be closed."],
     "ex-ham": ["DSA assignment deadline", "Hi everyone, please submit the linked list assignment by Friday. Reach out if you have any doubts."],
   };
-
   Object.keys(EXAMPLES).forEach((id) => {
     $(id).onclick = () => {
       $("subject").value = EXAMPLES[id][0];
       $("body").value = EXAMPLES[id][1];
-      $("check").click();
+      updateCounter();
+      runCheck();
     };
   });
 
-  $("clear").onclick = () => {
-    $("subject").value = "";
-    $("body").value = "";
-    $("result").style.display = "none";
-    $("error").style.display = "none";
-  };
+  /* ---------- Word counter ---------- */
+  function updateCounter() {
+    const words = ($("subject").value + " " + $("body").value).trim().split(/\s+/).filter(Boolean).length;
+    $("counter").textContent = words + (words === 1 ? " word" : " words");
+  }
+  $("subject").addEventListener("input", updateCounter);
+  $("body").addEventListener("input", updateCounter);
 
+  /* ---------- Result display ---------- */
   function fillChips(containerId, words, cls) {
     const box = $(containerId);
     box.textContent = "";
@@ -150,36 +365,66 @@
     });
   }
 
-  $("check").onclick = () => {
-    const subject = $("subject").value;
-    const body = $("body").value;
+  function runCheck() {
     $("error").style.display = "none";
     $("result").style.display = "none";
 
-    const r = detector.predict(subject, body);
+    const r = detector.predict($("subject").value, $("body").value);
     if (!r) {
-      $("error").textContent = "Please enter a subject or some email text.";
+      $("error").textContent = "Please enter a subject or some email text first.";
       $("error").style.display = "block";
       return;
     }
 
-    const pct = Math.round(r.spamProbability * 100);
+    const p = r.spamProbability;
+    const pct = Math.round(p * 100);
     const isSpam = r.label === "spam";
+
     $("result").className = isSpam ? "spam" : "ham";
-    $("verdict").textContent = isSpam ? "Likely spam" : "Looks legitimate";
-    $("fill").style.width = pct + "%";
-    $("detail").textContent = "Spam probability: " + pct + "%";
+    $("verdict").textContent = isSpam ? "🚫 Likely spam" : "✅ Looks legitimate";
+    $("percent").textContent = pct + "% spam probability";
+    $("dot").style.left = "0%";
+    $("result").style.display = "block";
+    requestAnimationFrame(() => { $("dot").style.left = Math.min(98, Math.max(2, pct)) + "%"; });
+    $("borderline").style.display = (p > 0.35 && p < 0.65) ? "block" : "none";
     fillChips("spam-words", r.spamWords, "s");
     fillChips("ham-words", r.hamWords, "h");
-    $("result").style.display = "block";
+  }
+
+  $("check").onclick = runCheck;
+  $("clear").onclick = () => {
+    $("subject").value = "";
+    $("body").value = "";
+    updateCounter();
+    $("result").style.display = "none";
+    $("error").style.display = "none";
+    $("subject").focus();
   };
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") runCheck();
+  });
 
-  // About section
+  /* ---------- Model stats and results table ---------- */
   const NAMES = { naive_bayes: "Naive Bayes", logistic_regression: "Logistic Regression" };
-  $("about").textContent =
-    "Trained on " + SPAM_MODEL.n_emails.toLocaleString() + " emails. Selected model: " +
-    NAMES[SPAM_MODEL.model_name] + " (" + SPAM_MODEL.terms.length.toLocaleString() + " features).";
+  const main = SPAM_MODEL.metrics;
 
+  [
+    [(main.accuracy * 100).toFixed(1) + "%", "Test accuracy"],
+    [SPAM_MODEL.n_emails.toLocaleString(), "Emails used"],
+    [SPAM_MODEL.terms.length.toLocaleString(), "Features"],
+  ].forEach(([value, label]) => {
+    const box = document.createElement("div");
+    box.className = "stat";
+    const b = document.createElement("b");
+    b.textContent = value;
+    const s = document.createElement("span");
+    s.textContent = label;
+    box.appendChild(b);
+    box.appendChild(s);
+    $("stats").appendChild(box);
+  });
+
+  $("about").textContent = "Selected model: " + NAMES[SPAM_MODEL.model_name] + ".";
   Object.entries(SPAM_MODEL.all_results).forEach(([name, m]) => {
     const tr = document.createElement("tr");
     [NAMES[name] + (name === SPAM_MODEL.model_name ? " (used)" : ""),

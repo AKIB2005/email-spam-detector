@@ -1,7 +1,7 @@
 """
 Train the spam detector and export it as model.js for the website.
 
-Run:  python train_export.py
+Run (from inside the training folder):  python train_export.py
 Needs emails.csv (Kaggle dataset with a text column and a spam/label column)
 in the same folder.
 """
@@ -18,7 +18,7 @@ from sklearn.naive_bayes import MultinomialNB
 from preprocess import prepare_email
 
 CSV_PATH = "emails.csv"
-OUTPUT_PATH = "model.js"
+OUTPUT_PATH = "../model.js"
 MAX_FEATURES = 20000  # keeps model.js small so the page loads fast
 
 
